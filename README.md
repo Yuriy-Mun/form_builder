@@ -1,36 +1,139 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SupaNext
 
-## Getting Started
+Next.js проект с интеграцией Supabase и UI компонентами от Shadcn.
 
-First, run the development server:
+## Начало работы
 
+### Предварительные требования
+- [Bun](https://bun.sh/) - пакетный менеджер и среда выполнения
+- [Node.js](https://nodejs.org/) (рекомендуется версия 18 или выше)
+- Учетная запись [Supabase](https://supabase.com/)
+
+### Установка
+
+1. Клонируйте репозиторий:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
+git clone <ссылка-на-репозиторий>
+cd supanext
+```
+
+2. Установите зависимости:
+```bash
+bun install
+```
+
+3. Создайте файл окружения `.env.local` и добавьте следующие переменные:
+```
+NEXT_PUBLIC_SUPABASE_URL=ваш-url-supabase-проекта
+NEXT_PUBLIC_SUPABASE_ANON_KEY=ваш-анонимный-ключ-supabase
+```
+
+Вы можете получить эти данные из панели управления Supabase.
+
+
+### Создание структуры базы данных и администратора
+
+Для настройки учетной записи администратора:
+```bash
+bun run setup-admin
+```
+
+
+### Запуск приложения
+
+Для запуска приложения в режиме разработки:
+```bash
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Приложение будет доступно по адресу [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Следуйте инструкциям в интерактивном режиме.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Структура проекта
 
-## Learn More
+- `/app` - Основные компоненты и страницы приложения
+- `/components` - Переиспользуемые UI компоненты
+- `/lib` - Утилиты и вспомогательные функции
+- `/hooks` - React-хуки
+- `/supabase` - Файлы конфигурации Supabase
+- `/scripts` - Скрипты для управления БД и настройки окружения
 
-To learn more about Next.js, take a look at the following resources:
+## Использование Supabase в проекте
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### В клиентских компонентах:
+```typescript
+// Клиентский компонент
+import { supabase } from '@/lib/supabase';
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+// Пример запроса
+const { data, error } = await supabase
+  .from('your_table')
+  .select('*');
+```
 
-## Deploy on Vercel
+### В серверных компонентах:
+```typescript
+// Серверный компонент
+import { createServerClient } from '@/lib/supabase-server';
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+export async function YourServerComponent() {
+  const supabase = createServerClient();
+  const { data } = await supabase.from('your_table').select('*');
+  
+  return <div>{/* Используйте ваши данные */}</div>
+}
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Схема базы данных
+
+Проект использует следующие таблицы:
+
+1. **Permissions** - Определяет доступные разрешения
+   - `id`: UUID (первичный ключ)
+   - `name`: VARCHAR (обязательное)
+   - `slug`: VARCHAR (обязательное, уникальное)
+   - `created_at`: TIMESTAMP
+   - `updated_at`: TIMESTAMP
+
+2. **Roles** - Определяет роли пользователей
+   - `id`: UUID (первичный ключ)
+   - `name`: VARCHAR (обязательное)
+   - `code`: VARCHAR (обязательное, уникальное)
+   - `active`: BOOLEAN (по умолчанию true)
+   - `created_at`: TIMESTAMP
+   - `updated_at`: TIMESTAMP
+
+3. **Roles_Permissions** - Связывает роли с разрешениями (многие-ко-многим)
+   - `id`: UUID (первичный ключ)
+   - `role_id`: UUID (внешний ключ к roles.id)
+   - `permission_id`: UUID (внешний ключ к permissions.id)
+   - `created_at`: TIMESTAMP
+   - `updated_at`: TIMESTAMP
+
+## UI Компоненты
+
+Проект использует [Shadcn/UI](https://ui.shadcn.com/) для компонентов интерфейса. Эти компоненты построены на основе Radix UI и Tailwind CSS.
+
+Для установки нового компонента используйте:
+```bash
+bunx shadcn-ui@latest add <имя-компонента>
+```
+
+## Сборка для продакшн
+
+Для создания production-сборки:
+```bash
+bun run build
+```
+
+Для запуска production-версии:
+```bash
+bun run start
+```
+
+## Дополнительная информация
+
+- [Документация Next.js](https://nextjs.org/docs)
+- [Документация Supabase](https://supabase.com/docs)
+- [Документация Shadcn/UI](https://ui.shadcn.com/docs)
