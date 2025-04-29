@@ -1,0 +1,33 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Supabase Integration
+
+The application uses Supabase for authentication, database, and storage.
+
+## Authentication
+
+- Supabase Auth is used for user authentication
+- [components/SupabaseAuth.tsx](mdc:components/SupabaseAuth.tsx): Auth component
+- Auth state is managed through Supabase cookies and session
+
+## Database Structure
+
+- [lib/supabase/sql/](mdc:lib/supabase/sql): SQL definitions for database tables
+  - `users.sql`: User table definitions
+  - `roles.sql`: Role table definitions
+  - `permissions.sql`: Permission table definitions
+  - `roles_permissions.sql`: Junction table for roles and permissions
+
+## API Integration
+
+- `createServerClient` from `@supabase/ssr` for server-side data fetching
+- Client-side data fetching with `@supabase/supabase-js`
+- Middleware integration for authentication checks
+
+## Setup Scripts
+
+- [scripts/setup-admin.ts](mdc:scripts/setup-admin.ts): Set up admin user and initial permissions
+

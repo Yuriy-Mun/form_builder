@@ -1,0 +1,29 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Authentication and Permissions
+
+The application uses Supabase for authentication and implements a role-based access control system.
+
+## Auth Flow
+
+- Authentication is managed via [middleware.ts](mdc:middleware.ts)
+- Admin routes are protected and require the `admin.access` permission
+- Unauthenticated users are redirected to the login page
+
+## Database Structure
+
+- [lib/supabase/sql/users.sql](mdc:lib/supabase/sql/users.sql): User definitions
+- [lib/supabase/sql/roles.sql](mdc:lib/supabase/sql/roles.sql): Role definitions
+- [lib/supabase/sql/permissions.sql](mdc:lib/supabase/sql/permissions.sql): Permission definitions
+- [lib/supabase/sql/roles_permissions.sql](mdc:lib/supabase/sql/roles_permissions.sql): Role-permission associations
+
+## Admin Components
+
+- [components/admin](mdc:components/admin): Admin-specific components
+- [components/roles](mdc:components/roles): Role management components
+- [components/permissions](mdc:components/permissions): Permission management components
+- [components/roles-permissions](mdc:components/roles-permissions): Role-permission association components
+

@@ -1,0 +1,34 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Application Routing
+
+The project uses Next.js App Router with route groups for organization.
+
+## Route Groups
+
+- `app/(admin)/`: Admin route group
+  - `app/(admin)/admin/`: Admin dashboard and functionality
+  - `app/(admin)/admin/login/`: Admin login
+  - `app/(admin)/admin/roles/`: Role management
+  - `app/(admin)/admin/permissions/`: Permission management
+
+- `app/(public)/`: Public route group for end users
+
+- `app/api/`: API endpoints
+  - `app/api/supabase/`: Supabase-related API endpoints
+
+## Special Routes
+
+- `app/forbidden/`: Access denied page
+- `app/layout.tsx`: Root layout with global providers
+
+## Middleware
+
+- [middleware.ts](mdc:middleware.ts): Handles authentication and route protection
+  - Protects admin routes
+  - Redirects unauthenticated users to login
+  - Checks user permissions
+
