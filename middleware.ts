@@ -1,54 +1,51 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { updateSession } from '@/lib/supabase/middleware'
 
 export async function middleware(req: NextRequest) {
-  // Create a response object to manipulate cookies
-  let response = NextResponse.next({
-    request: {
-      headers: req.headers,
-    },
-  })
+  // Call updateSession to refresh the session cookie
+  const res = await updateSession(req)
 
-  // Initialize Supabase client with cookie handling
+  // Create a Supabase client configured to use cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return req.cookies.getAll();
+        get(name: string) {
+          return req.cookies.get(name)?.value
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            req.cookies.set(name, value),
-          );
-          response = NextResponse.next({
-            request: req,
-          });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
+        set(name: string, value: string, options: CookieOptions) {
+          res.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+        },
+        remove(name: string, options: CookieOptions) {
+          res.cookies.delete(name)
         },
       },
     }
   )
 
-  // Verify authenticated user using getUser which is more secure
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  // Get user - this is safe because we already refreshed the session above
+  const { data: { user } } = await supabase.auth.getUser()
 
   // Only check admin routes (except login)
   if (req.nextUrl.pathname.startsWith('/admin') && 
       req.nextUrl.pathname !== '/admin/login') {
     
-    if (!user || userError) {
+    if (!user) {
       // No authenticated user - redirect to login
       const redirectUrl = new URL('/admin/login', req.url)
       redirectUrl.searchParams.set('redirectedFrom', req.nextUrl.pathname)
       return NextResponse.redirect(redirectUrl)
     }
+    
     try {
       const userRole = (await supabase.from('users').select('role_id').eq('id', user.id).single()).data?.role_id
-      console.log('userRole', userRole)
+      
       // Check if user has admin.access permission
       const { data: userRolePermissions, error: permissionError } = await supabase
         .from('roles_permissions')
@@ -59,17 +56,17 @@ export async function middleware(req: NextRequest) {
         `)
         .eq('role_id', userRole)
         .eq('permissions.slug', 'admin.access');
+        
       if (permissionError || !userRolePermissions || userRolePermissions.length === 0) {
         // User doesn't have admin.access permission
         return NextResponse.redirect(new URL('/forbidden', req.url));
       }
     } catch (error) {
-      console.error('Middleware permission check error:', error);
       return NextResponse.redirect(new URL('/admin/login', req.url));
     }
   }
 
-  return response
+  return res
 }
 
 export const config = {

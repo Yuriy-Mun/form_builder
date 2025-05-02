@@ -1,34 +1,23 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
-# Application Routing
+# App Routing Structure
 
-The project uses Next.js App Router with route groups for organization.
+This project uses Next.js App Router with route groups for organization:
 
-## Route Groups
+## Admin Routes
+- [/admin/forms](mdc:app/(admin)/admin/forms/page.tsx) - Form management dashboard
+- [/admin/forms/add](mdc:app/(admin)/admin/forms/add/page.tsx) - Create new forms
+- [/admin/forms/edit/[id]](mdc:app/(admin)/admin/forms/edit/[id]/page.tsx) - Edit existing forms
+- [/admin/permissions](mdc:app/(admin)/admin/permissions/page.tsx) - Manage permissions
+- [/admin/roles](mdc:app/(admin)/admin/roles/page.tsx) - Manage user roles
 
-- `app/(admin)/`: Admin route group
-  - `app/(admin)/admin/`: Admin dashboard and functionality
-  - `app/(admin)/admin/login/`: Admin login
-  - `app/(admin)/admin/roles/`: Role management
-  - `app/(admin)/admin/permissions/`: Permission management
+## Public Routes
+- [/forms/[id]](mdc:app/(public)/forms/[id]/page.tsx) - Public form submission page
 
-- `app/(public)/`: Public route group for end users
-
-- `app/api/`: API endpoints
-  - `app/api/supabase/`: Supabase-related API endpoints
-
-## Special Routes
-
-- `app/forbidden/`: Access denied page
-- `app/layout.tsx`: Root layout with global providers
-
-## Middleware
-
-- [middleware.ts](mdc:middleware.ts): Handles authentication and route protection
-  - Protects admin routes
-  - Redirects unauthenticated users to login
-  - Checks user permissions
+The routing is organized into two main route groups:
+1. `(admin)` - Protected routes that require authentication and admin permissions
+2. `(public)` - Public-facing routes accessible to all users
 

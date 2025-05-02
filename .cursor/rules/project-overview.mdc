@@ -1,26 +1,20 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
-# Form Builder Project Overview
+# Project Overview
 
-This is a Next.js application with Supabase integration for backend services. The project is structured as a form builder with admin capabilities and role-based access control.
+This is a Next.js project with Supabase integration for a form builder application with the following structure:
 
-## Key Files and Directories
+- [package.json](mdc:package.json) - Project dependencies and scripts
+- [app](mdc:app) - Next.js App Router structure with admin and public routes
+- [components/form-builder](mdc:components/form-builder) - Form builder components
+- [lib/supabase](mdc:lib/supabase) - Supabase integration utilities
 
-- [middleware.ts](mdc:middleware.ts): Handles authentication and route protection
-- [app/layout.tsx](mdc:app/layout.tsx): Main application layout
-- [lib/supabase/sql](mdc:lib/supabase/sql): SQL definitions for database tables
-- [components/ui](mdc:components/ui): UI components using Shadcn UI
+## Key Features
 
-## Project Structure
-
-- `app/`: Next.js application routes
-  - `(admin)/`: Admin-only routes (protected)
-  - `(public)/`: Public-facing routes
-  - `api/`: API endpoints
-- `components/`: Reusable React components
-- `lib/`: Utility functions and libraries
-- `hooks/`: Custom React hooks
-
+1. Form Builder - Allows creation and management of custom forms
+2. Admin Panel - Secured admin interface for form management
+3. Supabase Backend - For authentication, database, and storage
+4. Role-based Access Control - Using permissions and roles

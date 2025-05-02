@@ -1,29 +1,39 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 # UI Components
 
-The application uses [Shadcn UI](mdc:https:/ui.shadcn.com) for its component library, with customizations for the form builder.
+This project uses [Shadcn UI](mdc:https:/ui.shadcn.com) which is built on top of Radix UI and Tailwind CSS. The components are located in the `/components/ui` directory.
 
-## Core UI Components
+## Key UI Components
+- Buttons, inputs, forms, and other basic UI elements
+- Cards for content organization
+- Dialog and modals for interactions
+- Tables for data display
 
-- [components/ui/form.tsx](mdc:components/ui/form.tsx): Form component with React Hook Form integration
-- [components/ui/button.tsx](mdc:components/ui/button.tsx): Button component with variants
-- [components/ui/card.tsx](mdc:components/ui/card.tsx): Card components for layout
-- [components/ui/dialog.tsx](mdc:components/ui/dialog.tsx): Modal dialog components
+## Usage Example
+```tsx
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-## Data Display Components
+// Component using UI elements
+function MyComponent() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Form Title</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Input placeholder="Enter value" />
+        <Button>Submit</Button>
+      </CardContent>
+    </Card>
+  );
+}
+```
 
-- [components/data-table.tsx](mdc:components/data-table.tsx): Advanced data table with sorting, filtering, and pagination
-- [components/ui/table.tsx](mdc:components/ui/table.tsx): Basic table components
-- [components/chart-area-interactive.tsx](mdc:components/chart-area-interactive.tsx): Interactive area charts
-
-## Navigation Components
-
-- [components/app-sidebar.tsx](mdc:components/app-sidebar.tsx): Application sidebar
-- [components/nav-main.tsx](mdc:components/nav-main.tsx): Main navigation
-- [components/site-header.tsx](mdc:components/site-header.tsx): Site header
-- [components/nav-user.tsx](mdc:components/nav-user.tsx): User navigation
+The components are configured in [components.json](mdc:components.json) and use Tailwind CSS for styling.
 

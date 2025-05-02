@@ -1,33 +1,24 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 # Supabase Integration
 
-The application uses Supabase for authentication, database, and storage.
+This project uses Supabase for authentication, database, and storage. The integration is organized as follows:
 
-## Authentication
+## Key Files
+- [lib/supabase/client.ts](mdc:lib/supabase/client.ts) - Browser client for client-side components
+- [lib/supabase/server.ts](mdc:lib/supabase/server.ts) - Server client for server components
+- [lib/supabase/middleware.ts](mdc:lib/supabase/middleware.ts) - Middleware integration for auth
+- [lib/supabase/forms.ts](mdc:lib/supabase/forms.ts) - Form-specific Supabase functions
+- [lib/supabase/types.ts](mdc:lib/supabase/types.ts) - TypeScript definitions for database tables
 
-- Supabase Auth is used for user authentication
-- [components/SupabaseAuth.tsx](mdc:components/SupabaseAuth.tsx): Auth component
-- Auth state is managed through Supabase cookies and session
-
-## Database Structure
-
-- [lib/supabase/sql/](mdc:lib/supabase/sql): SQL definitions for database tables
-  - `users.sql`: User table definitions
-  - `roles.sql`: Role table definitions
-  - `permissions.sql`: Permission table definitions
-  - `roles_permissions.sql`: Junction table for roles and permissions
-
-## API Integration
-
-- `createServerClient` from `@supabase/ssr` for server-side data fetching
-- Client-side data fetching with `@supabase/supabase-js`
-- Middleware integration for authentication checks
-
-## Setup Scripts
-
-- [scripts/setup-admin.ts](mdc:scripts/setup-admin.ts): Set up admin user and initial permissions
-
+## Database Schema
+The database includes tables for:
+- `forms` - Form definitions
+- `form_fields` - Fields within forms
+- `form_responses` - User submissions
+- `roles` - User roles
+- `permissions` - Available permissions
+- `roles_permissions` - Join table for roles and permissions

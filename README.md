@@ -75,10 +75,10 @@ const { data, error } = await supabase
 ### В серверных компонентах:
 ```typescript
 // Серверный компонент
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerComponentClient } from '@/lib/supabase/server';
 
 export async function YourServerComponent() {
-  const supabase = createServerClient();
+  const supabase = await createServerComponentClient();
   const { data } = await supabase.from('your_table').select('*');
   
   return <div>{/* Используйте ваши данные */}</div>

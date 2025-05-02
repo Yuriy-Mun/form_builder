@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { createBrowserClient } from '@supabase/ssr';
+import { createClient } from '@/lib/supabase/client';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -17,24 +17,26 @@ export default function AdminLoginPage() {
   const searchParams = useSearchParams();
   const redirectedFrom = searchParams.get('redirectedFrom') || '/admin';
   
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // Create the Supabase client using our utility function
+  const supabase = createClient();
   
   useEffect(() => {
     // Check if already authenticated using getUser for security
     const checkAuth = async () => {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      
-      if (user && !error) {
-        router.push('/admin');
-        router.refresh();
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (user && !error) {
+          router.push('/admin');
+          router.refresh();
+        }
+      } catch (err) {
+        // Auth error, stay on login page
       }
     };
     
     checkAuth();
-  }, [router, supabase]);
+  }, [router]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +44,7 @@ export default function AdminLoginPage() {
     setLoading(true);
     
     try {
+      // Sign in with email and password
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -51,13 +54,7 @@ export default function AdminLoginPage() {
         throw error;
       }
       
-      // После успешного входа проверяем пользователя через getUser
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        throw new Error('Не удалось подтвердить вход. Попробуйте еще раз.');
-      }
-      
+      // After successful login, refresh the page to apply session cookie
       router.push(redirectedFrom);
       router.refresh();
     } catch (err: any) {
