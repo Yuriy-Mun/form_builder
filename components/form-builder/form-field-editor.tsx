@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   DndContext, 
   closestCenter, 
@@ -153,7 +153,30 @@ export function FormFieldEditor({
   formName = "Untitled Form",
   formDescription = ""
 }: FormFieldEditorProps) {
-  const [fields, setFields] = useState<FormField[]>(initialFields);
+  // Validate initial fields
+  const validatedInitialFields = useMemo(() => {
+    const validTypes: FieldType[] = ['text', 'textarea', 'checkbox', 'radio', 'select', 'date'];
+    
+    return initialFields.map(field => {
+      // Create a new object to avoid mutating the original
+      const validField = { ...field };
+      
+      // Ensure the field has a valid type
+      if (!validTypes.includes(field.type as FieldType)) {
+        validField.type = 'text'; // Default to text if the type is invalid
+      }
+      
+      // Ensure radio, checkbox, and select fields have options
+      if ((validField.type === 'radio' || validField.type === 'select' || validField.type === 'checkbox') 
+          && (!validField.options || validField.options.length === 0)) {
+        validField.options = ['Option 1'];
+      }
+      
+      return validField;
+    });
+  }, [initialFields]);
+  
+  const [fields, setFields] = useState<FormField[]>(validatedInitialFields);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [currentField, setCurrentField] = useState<FormField | null>(null);
@@ -194,6 +217,12 @@ export function FormFieldEditor({
   };
 
   const handleFieldSave = (updatedField: FormField) => {
+    // Ensure the field has a valid type
+    const validTypes: FieldType[] = ['text', 'textarea', 'checkbox', 'radio', 'select', 'date'];
+    if (!validTypes.includes(updatedField.type as FieldType)) {
+      updatedField.type = 'text'; // Default to text if the type is invalid
+    }
+    
     const existingIndex = fields.findIndex(field => field.id === updatedField.id);
     
     if (existingIndex >= 0) {

@@ -137,3 +137,70 @@ bun run start
 - [Документация Next.js](https://nextjs.org/docs)
 - [Документация Supabase](https://supabase.com/docs)
 - [Документация Shadcn/UI](https://ui.shadcn.com/docs)
+
+# Form Builder
+
+## Word Import Feature
+
+The application now includes a feature to import form questions from Word documents. This feature uses Claude 3 Sonnet (latest version) to parse and structure the form questions.
+
+### Features
+
+- Upload Word documents (.doc or .docx) containing form questions
+- Real-time status updates during processing with a live progress stream
+- Automatic extraction of form fields, including:
+  - Field types (text, textarea, radio, checkbox, select, date)
+  - Required validation
+  - Options for multiple choice questions
+  - Conditional logic between questions
+
+### Setup
+
+1. Obtain a Claude API key from Anthropic (https://console.anthropic.com/)
+2. Create a `.env.local` file in the project root (or update your existing one) and add:
+   ```
+   CLAUDE_API_KEY=your_api_key_here
+   ```
+3. Install the dependencies (if not already done):
+   ```
+   bun install
+   ```
+
+### Usage
+
+1. Navigate to the Forms page in the admin panel
+2. Click the "Import from Word" button
+3. In the dialog that appears, upload a Word document (.doc or .docx) containing your form questions
+4. Watch the real-time processing status as the document is analyzed
+5. After processing, you'll be taken to a page to provide form details (title, description, etc.)
+6. Review and edit the extracted fields as needed
+7. Save the form
+
+### Document Structure Recommendations
+
+For best results, format your Word document with:
+- Clear question texts
+- One question per paragraph or section
+- For multiple choice questions, list options clearly
+- For conditional questions, include clear references to the questions they depend on
+
+Example:
+```
+1. What is your full name?
+
+2. What is your age?
+
+3. What is your preferred contact method?
+   - Email
+   - Phone
+   - Mail
+
+4. If you selected "Email" above, please provide your email address:
+
+5. How would you rate our service on a scale of 1-5?
+   1 - Poor
+   2 - Below Average
+   3 - Average
+   4 - Good
+   5 - Excellent
+```
