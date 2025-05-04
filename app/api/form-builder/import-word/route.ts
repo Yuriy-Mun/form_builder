@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Anthropic } from '@anthropic-ai/sdk';
+import { openai } from '@ai-sdk/openai';
+import { generateObject, generateText } from 'ai';
 import * as mammoth from 'mammoth';
+import { z } from 'zod';
+import { createClient } from '@/lib/supabase/client';
+import { cookies } from 'next/headers';
 
-// Get Claude API key from environment variables
-const claudeApiKey = process.env.CLAUDE_API_KEY;
+// Check for OpenAI API key
+const openaiApiKey = process.env.OPENAI_API_KEY;
+if (!openaiApiKey) {
+  console.error('OPENAI_API_KEY is not set. Please set it in your environment variables.');
+}
 
 // Simple in-memory storage for active sessions
 type SessionData = {
@@ -31,64 +38,37 @@ if (typeof setInterval !== 'undefined') {
   }, 5 * 60 * 1000);
 }
 
-// Define instruction prompt for Claude
-const SYSTEM_PROMPT = `You are an AI assistant specialized in extracting form questions from documents and converting them into a structured JSON format. Your task is to:
+// Define the schema for form fields
+const FormFieldSchema = z.object({
+  id: z.string(),
+  type: z.enum(['text', 'textarea', 'checkbox', 'radio', 'select', 'date']),
+  label: z.string(),
+  required: z.boolean(),
+  placeholder: z.string().optional().default(''),
+  options: z.array(z.string()).optional(),
+  conditional_logic: z.object({
+    dependsOn: z.string(),
+    condition: z.enum(['equals', 'not_equals', 'contains', 'not_contains']),
+    value: z.string()
+  }).optional()
+});
 
-1. Identify all questions in the provided text
-2. For each question, determine:
-   - The question text/label
-   - The appropriate field type (text, textarea, radio, checkbox, select, date)
-   - Whether the field should be required
-   - Any placeholder text
-   - For radio/checkbox/select fields, extract the possible options
-   - Identify any conditional logic (questions that depend on answers to other questions)
+const FormSchema = z.object({
+  fields: z.array(FormFieldSchema)
+});
 
-3. Format everything into a JSON object with a "fields" array following this structure:
-{
-  "fields": [
-    {
-      "id": "field-1",
-      "type": "text", // One of: text, textarea, checkbox, radio, select, date
-      "label": "Ф.И.О.",
-      "required": true, // or false
-      "placeholder": ""
-    },
-    {
-      "id": "field-2",
-      "type": "date",
-      "label": "Дата рождения",
-      "required": true,
-      "placeholder": ""
-    },
-    {
-      "id": "field-3",
-      "type": "radio",
-      "label": "Another question here",
-      "required": false,
-      "options": ["Yes", "No", "Maybe"],
-      "placeholder": "",
-      "conditional_logic": {
-        "dependsOn": "field-1", // ID of the field this question depends on
-        "condition": "equals", // One of: equals, not_equals, contains, not_contains
-        "value": "Some value" // Value to compare against
-      }
-    }
-  ]
+// Form creation schema
+const CreateFormSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  active: z.boolean().default(true),
+  fields: z.array(FormFieldSchema)
+});
+
+// Helper function to create a Supabase client with admin privileges
+function createServerClient() {
+  return createClient();
 }
-
-Field type guidelines:
-- Use "text" for short answers (name, email, etc.)
-- Use "textarea" for longer text responses
-- Use "radio" for single-select questions with few options
-- Use "select" for single-select questions with many options
-- Use "checkbox" for multi-select questions
-- Use "date" for date inputs
-
-For conditional logic, identify any phrases like "If you answered Yes to question 3..." and create appropriate conditional_logic objects.
-
-Ensure each field has a unique "id" in the format "field-{number}" with sequential numbering.
-
-Return ONLY the valid JSON with no additional text or explanation.`;
 
 // Helper function to send SSE messages
 function sendSSEMessage(controller: ReadableStreamDefaultController, event: string, data: any) {
@@ -105,6 +85,253 @@ function safelyCloseSession(controller: ReadableStreamDefaultController, session
     console.log('Note: Controller was already closed');
   }
   sessions.delete(sessionId);
+}
+
+// Helper function to process text content in chunks if it's too large
+async function processLargeDocument(extractedText: string, controller?: ReadableStreamDefaultController) {
+  // Define max chunk size 
+  const MAX_CHUNK_SIZE = 12000;
+  const chunks = [];
+  let currentPosition = 0;
+
+  // Split document into manageable chunks if necessary
+  if (extractedText.length > MAX_CHUNK_SIZE) {
+    if (controller) {
+      sendSSEMessage(controller, 'status', { 
+        message: 'Document is large, processing in chunks...',
+        details: `Total text length: ${extractedText.length} characters`
+      });
+    }
+
+    while (currentPosition < extractedText.length) {
+      // Try to find a good breaking point (newline) near the max chunk size
+      let endPosition = Math.min(currentPosition + MAX_CHUNK_SIZE, extractedText.length);
+      if (endPosition < extractedText.length) {
+        const nextNewline = extractedText.indexOf('\n', endPosition - 500);
+        if (nextNewline !== -1 && nextNewline < endPosition + 500) {
+          endPosition = nextNewline;
+        }
+      }
+
+      chunks.push(extractedText.substring(currentPosition, endPosition));
+      currentPosition = endPosition;
+    }
+  } else {
+    // Document fits in a single chunk
+    chunks.push(extractedText);
+  }
+
+  // Process each chunk
+  const allFields = [];
+  
+  for (let i = 0; i < chunks.length; i++) {
+    if (controller) {
+      sendSSEMessage(controller, 'status', { 
+        message: `Processing chunk ${i+1} of ${chunks.length}...`,
+        details: `Chunk size: ${chunks[i].length} characters`
+      });
+    }
+
+    try {
+      // First try with generateObject - preferred for type safety
+      const { object: formData } = await generateObject({
+        model: openai('gpt-4.1-mini'),
+        schema: FormSchema,
+        prompt: `Extract form questions from this document and convert them into a structured format. 
+        Identify all questions, determine appropriate field types (text, textarea, radio, checkbox, select, date), 
+        whether they should be required, any placeholder text, and possible options for select/radio/checkbox fields.
+        
+        For conditional logic between questions, create conditional_logic objects when appropriate.
+        
+        Field type guidelines:
+        - Use "text" for short answers (name, email, etc.)
+        - Use "textarea" for longer text responses
+        - Use "radio" for single-select questions with few options
+        - Use "select" for single-select questions with many options
+        - Use "checkbox" for multi-select questions
+        - Use "date" for date inputs
+        
+        Here is the document chunk to process:
+        
+        ${chunks[i]}`,
+        maxTokens: 6000,
+      });
+
+      allFields.push(...formData.fields);
+
+    } catch (error) {
+      console.log('Error with generateObject, falling back to generateText:', error);
+      
+      // Fallback to generateText if generateObject fails
+      try {
+        const { text } = await generateText({
+          model: openai('gpt-4.1-mini'),
+          maxTokens: 6000,
+          prompt: `Extract form questions from this document and convert them into a structured JSON format. 
+          Return ONLY valid JSON with a "fields" array of objects. Each field object should have:
+          - id: a unique string identifier (format: field-{number})
+          - type: one of "text", "textarea", "checkbox", "radio", "select", "date"
+          - label: the question text
+          - required: boolean value
+          - placeholder: optional string
+          - options: array of strings (for radio/checkbox/select fields)
+          - conditional_logic: optional object with dependsOn, condition, and value properties
+          
+          Example JSON format:
+          {
+            "fields": [
+              {
+                "id": "field-1",
+                "type": "text",
+                "label": "Full Name",
+                "required": true,
+                "placeholder": ""
+              },
+              {
+                "id": "field-2",
+                "type": "radio",
+                "label": "Gender",
+                "required": true,
+                "options": ["Male", "Female", "Other"],
+                "placeholder": ""
+              }
+            ]
+          }
+          
+          Here is the document chunk to process:
+          
+          ${chunks[i]}`
+        });
+
+        // Try to extract JSON from the response
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            // Parse the JSON and validate it
+            const parsedData = JSON.parse(jsonMatch[0]);
+            
+            if (parsedData && parsedData.fields && Array.isArray(parsedData.fields)) {
+              const validatedFields = parsedData.fields.map((field: any, index: number) => {
+                // Ensure required fields exist and have valid values
+                const validField: any = { ...field };
+                
+                if (!validField.id || typeof validField.id !== 'string') {
+                  validField.id = `field-${index + 1 + allFields.length}`;
+                }
+                
+                if (!['text', 'textarea', 'checkbox', 'radio', 'select', 'date'].includes(validField.type)) {
+                  validField.type = 'text';
+                }
+                
+                if (!validField.label || typeof validField.label !== 'string') {
+                  validField.label = `Question ${index + 1 + allFields.length}`;
+                }
+                
+                validField.required = !!validField.required;
+                validField.placeholder = validField.placeholder || '';
+                
+                if (['radio', 'checkbox', 'select'].includes(validField.type)) {
+                  if (!Array.isArray(validField.options) || validField.options.length === 0) {
+                    validField.options = ['Option 1'];
+                  }
+                }
+                
+                return validField;
+              });
+              
+              allFields.push(...validatedFields);
+            }
+          } catch (e) {
+            if (controller) {
+              sendSSEMessage(controller, 'status', { 
+                message: `Warning: Could not parse fields from chunk ${i+1}. Continuing...`,
+              });
+            }
+            console.error('Failed to parse JSON:', e);
+          }
+        }
+      } catch (fallbackError) {
+        if (controller) {
+          sendSSEMessage(controller, 'status', { 
+            message: `Warning: Could not process chunk ${i+1}. Continuing...`,
+          });
+        }
+        console.error('Fallback method also failed:', fallbackError);
+      }
+    }
+  }
+
+  // Ensure unique IDs
+  const processedFields = allFields.map((field: any, index: number) => {
+    return {
+      ...field,
+      id: `field-${index + 1}`
+    };
+  });
+
+  console.log('Processed fields:', processedFields);
+
+  return processedFields;
+}
+
+// Helper function to create a new form from imported fields
+async function createForm(title: string, description: string | null, fields: any[], userId: string) {
+  const supabase = createServerClient();
+  
+  // First, check if user exists and has permissions
+  const { data: userCheck, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !userCheck.user) {
+    throw new Error('Authentication required');
+  }
+  
+  // Begin transaction by creating the form
+  const { data: formData, error: formError } = await supabase
+    .from('forms')
+    .insert({
+      title,
+      description,
+      active: true,
+      created_by: userId
+    })
+    .select()
+    .single();
+  
+  if (formError) {
+    throw new Error(`Failed to create form: ${formError.message}`);
+  }
+  
+  if (!formData) {
+    throw new Error('Failed to create form: No data returned');
+  }
+  
+  // Then insert the form fields
+  const formattedFields = fields.map((field, index) => {
+    return {
+      form_id: formData.id,
+      type: field.type,
+      label: field.label,
+      placeholder: field.placeholder || '',
+      required: !!field.required,
+      options: field.options && field.options.length > 0 ? field.options : null,
+      conditional_logic: field.conditional_logic || null,
+      position: index,
+    };
+  });
+  
+  const { error: fieldsError } = await supabase
+    .from('form_fields')
+    .insert(formattedFields);
+    
+  if (fieldsError) {
+    throw new Error(`Failed to create form fields: ${fieldsError.message}`);
+  }
+  
+  return {
+    formId: formData.id,
+    title: formData.title,
+    fieldsCount: formattedFields.length
+  };
 }
 
 // Handle GET requests for EventSource connection
@@ -159,71 +386,122 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const formData = await request.formData();
-  const sessionId = formData.get('sessionId')?.toString() || '';
-  const file = formData.get('file');
+  const contentType = request.headers.get('content-type') || '';
   
-  // Get the session data
-  const session = sessions.get(sessionId);
-  
-  // If session exists, process via SSE
-  if (session && session.controller) {
-    // Mark upload as started to prevent duplicate processing
-    if (session.uploadStarted) {
-      return NextResponse.json({ error: 'Upload already in progress for this session' }, { status: 400 });
-    }
+  // Handle form upload case (multipart/form-data)
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await request.formData();
+    const sessionId = formData.get('sessionId')?.toString() || '';
+    const file = formData.get('file');
     
-    session.uploadStarted = true;
+    // Get the session data
+    const session = sessions.get(sessionId);
     
-    // Process file asynchronously and stream updates
-    processFileWithSSE(file, session.controller, sessionId).catch(error => {
-      console.error('Error in processFileWithSSE:', error);
+    // If session exists, process via SSE
+    if (session && session.controller) {
+      // Mark upload as started to prevent duplicate processing
+      if (session.uploadStarted) {
+        return NextResponse.json({ error: 'Upload already in progress for this session' }, { status: 400 });
+      }
+      
+      session.uploadStarted = true;
+      
+      // Process file asynchronously and stream updates
+      processFileWithSSE(file, session.controller, sessionId).catch(error => {
+        console.error('Error in processFileWithSSE:', error);
+        try {
+          sendSSEMessage(session.controller, 'error', { 
+            message: error.message || 'An unexpected error occurred'
+          });
+          safelyCloseSession(session.controller, sessionId);
+        } catch (e) {
+          // Ignore errors when sending or closing
+        }
+      });
+      
+      // Return immediate success response to the POST request
+      return NextResponse.json({ success: true, message: 'Processing started' });
+    } else {
+      // Regular JSON response for clients that don't use SSE or if session doesn't exist
       try {
-        sendSSEMessage(session.controller, 'error', { 
-          message: error.message || 'An unexpected error occurred'
-        });
-        safelyCloseSession(session.controller, sessionId);
-      } catch (e) {
-        // Ignore errors when sending or closing
+        // Check if OpenAI API key is available
+        if (!openaiApiKey) {
+          return NextResponse.json({ error: 'OpenAI API key is not configured' }, { status: 500 });
+        }
+
+        if (!file || !(file instanceof Blob)) {
+          return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+        }
+
+        // Check file type
+        const filename = (file as any).name?.toLowerCase() || '';
+        if (!filename.endsWith('.doc') && !filename.endsWith('.docx')) {
+          return NextResponse.json({ error: 'File must be a Word document (.doc or .docx)' }, { status: 400 });
+        }
+
+        // Process the file
+        const result = await processFile(file);
+        return NextResponse.json(result);
+      } catch (error: any) {
+        console.error('Error processing Word document:', error);
+        return NextResponse.json({ error: error.message || 'Failed to process document' }, { status: 500 });
       }
-    });
-    
-    // Return immediate success response to the POST request
-    return NextResponse.json({ success: true, message: 'Processing started' });
-  } else {
-    // Regular JSON response for clients that don't use SSE or if session doesn't exist
+    }
+  } 
+  // Handle form creation case (application/json)
+  else if (contentType.includes('application/json')) {
     try {
-      // Check if Claude API key is available
-      if (!claudeApiKey) {
-        return NextResponse.json({ error: 'Claude API key is not configured' }, { status: 500 });
+      const data = await request.json();
+      
+      // Validate the request data
+      const result = CreateFormSchema.safeParse(data);
+      
+      if (!result.success) {
+        return NextResponse.json({ 
+          error: 'Invalid form data', 
+          details: result.error.format() 
+        }, { status: 400 });
       }
-
-      if (!file || !(file instanceof Blob)) {
-        return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      
+      // Get the current user
+      const supabase = createServerClient();
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !userData.user) {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
       }
-
-      // Check file type
-      const filename = (file as any).name?.toLowerCase() || '';
-      if (!filename.endsWith('.doc') && !filename.endsWith('.docx')) {
-        return NextResponse.json({ error: 'File must be a Word document (.doc or .docx)' }, { status: 400 });
-      }
-
-      // Process the file
-      const result = await processFile(file);
-      return NextResponse.json(result);
+      
+      // Create the form
+      const formResult = await createForm(
+        data.title,
+        data.description || null,
+        data.fields,
+        userData.user.id
+      );
+      
+      return NextResponse.json({
+        success: true,
+        message: 'Form created successfully',
+        form: formResult
+      });
     } catch (error: any) {
-      console.error('Error processing Word document:', error);
-      return NextResponse.json({ error: error.message || 'Failed to process document' }, { status: 500 });
+      console.error('Error creating form:', error);
+      return NextResponse.json({ 
+        error: error.message || 'Failed to create form' 
+      }, { status: 500 });
     }
   }
+  
+  // If we get here, the content type is not supported
+  return NextResponse.json({ error: 'Unsupported content type' }, { status: 415 });
 }
 
 // Function to process file with streaming updates
 async function processFileWithSSE(file: FormDataEntryValue | null, controller: ReadableStreamDefaultController, sessionId: string) {
   try {
-    // Check if Claude API key is available
-    if (!claudeApiKey) {
-      sendSSEMessage(controller, 'error', { message: 'Claude API key is not configured' });
+    // Check if OpenAI API key is available
+    if (!openaiApiKey) {
+      sendSSEMessage(controller, 'error', { message: 'OpenAI API key is not configured' });
       safelyCloseSession(controller, sessionId);
       return;
     }
@@ -273,135 +551,49 @@ async function processFileWithSSE(file: FormDataEntryValue | null, controller: R
       details: `Found ${extractedText.split(/\s+/).length} words to analyze`
     });
 
-    // Create Anthropic client
-    const anthropic = new Anthropic({
-      apiKey: claudeApiKey,
-    });
-
-    // Process the extracted text with Claude
-    sendSSEMessage(controller, 'status', { message: 'Analyzing document structure and identifying questions...' });
-    
-    const response = await anthropic.messages.create({
-      model: 'claude-3-7-sonnet-20250219',
-      max_tokens: 6000,
-      system: SYSTEM_PROMPT,
-      messages: [
-        { role: 'user', content: extractedText }
-      ],
-    });
-
-    sendSSEMessage(controller, 'status', { message: 'AI processing complete. Parsing response...' });
-
-    // Extract and parse the JSON response
-    const responseContent = response.content.find(c => c.type === 'text')?.text;
-    
-    if (!responseContent) {
-      sendSSEMessage(controller, 'error', { message: 'No text response from Claude' });
-      safelyCloseSession(controller, sessionId);
-      return;
-    }
-    
-    let parsedData;
-    
     try {
-      console.log('responseContent', responseContent);
-      // Try to parse the entire response as JSON
-      parsedData = JSON.parse(responseContent);
-    } catch (e) {
-      // If that fails, try to extract JSON from the response
-      sendSSEMessage(controller, 'status', { message: 'Extracting JSON from response...' });
+      // Process the document in chunks if needed
+      const fields = await processLargeDocument(extractedText, controller);
       
-      const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          console.log('jsonMatch', jsonMatch);
-          // Попытка исправить неполный JSON
-          let jsonString = jsonMatch[0];
+      // Extract possible title from the document
+      let suggestedTitle = '';
+      try {
+        // Try to generate a title based on the document content
+        const { text: title } = await generateText({
+          model: openai('gpt-4.1-mini'),
+          prompt: `Based on the content of this document, suggest a clear, concise title for the form (max 5-7 words). 
+          Return ONLY the title with no explanation or additional text.
           
-          // Проверка на незавершенный JSON и попытка его восстановления
-          const openBraces = (jsonString.match(/\{/g) || []).length;
-          const closeBraces = (jsonString.match(/\}/g) || []).length;
-          const openBrackets = (jsonString.match(/\[/g) || []).length;
-          const closeBrackets = (jsonString.match(/\]/g) || []).length;
-          
-          // Если скобки не сбалансированы, попробуем исправить JSON
-          if (openBraces > closeBraces || openBrackets > closeBrackets) {
-            console.log('Unbalanced JSON detected, attempting to repair');
-            
-            // Проверим и обработаем ситуацию с оборванным полем options или другими массивами
-            jsonString = jsonString.replace(/,\s*"options"\s*:\s*\[\s*"[^"]*"(?:\s*,\s*"[^"]*")*\s*$/g, 
-              (match) => match + ']');
-            
-            // Закрыть массив fields, если он незавершен
-            if (jsonString.includes('"fields": [') && openBrackets > closeBrackets) {
-              jsonString += ']';
-            }
-            
-            // Закрыть объект JSON если нужно
-            if (openBraces > closeBraces) {
-              jsonString += '}';
-            }
-            
-            console.log('Repaired JSON:', jsonString);
-          }
-          
-          parsedData = JSON.parse(jsonString);
-          
-          // Дополнительная проверка структуры полей
-          if (parsedData && parsedData.fields && Array.isArray(parsedData.fields)) {
-            // Проверить и исправить каждое поле
-            parsedData.fields = parsedData.fields.map((field: any, index: number) => {
-              const validField = { ...field };
-              
-              // Обеспечить наличие необходимых полей
-              if (!validField.id) validField.id = `field-${index + 1}`;
-              if (!validField.type) validField.type = 'text';
-              if (!validField.label) validField.label = `Field ${index + 1}`;
-              validField.required = !!validField.required;
-              validField.placeholder = validField.placeholder || '';
-              
-              // Обеспечить options для соответствующих типов полей
-              if ((validField.type === 'radio' || validField.type === 'checkbox' || validField.type === 'select') 
-                  && (!Array.isArray(validField.options) || validField.options.length === 0)) {
-                validField.options = ['Option 1'];
-              }
-              
-              return validField;
-            });
-          }
-        } catch (e2) {
-          console.error('Failed to parse JSON from Claude response:', e2);
-          sendSSEMessage(controller, 'error', { message: 'Failed to parse form structure' });
-          safelyCloseSession(controller, sessionId);
-          return;
-        }
-      } else {
-        console.error('No valid JSON found in Claude response');
-        sendSSEMessage(controller, 'error', { message: 'Failed to extract form structure' });
-        safelyCloseSession(controller, sessionId);
-        return;
+          Document content:
+          ${extractedText.substring(0, 2000)}...`,
+          maxTokens: 100
+        });
+        
+        suggestedTitle = title.trim();
+      } catch (error) {
+        console.error('Error generating title suggestion:', error);
+        // If title generation fails, use a default title
+        suggestedTitle = filename.replace(/\.(doc|docx)$/, '') || 'Imported Form';
       }
-    }
-
-    // Validate the parsed data has a fields array
-    if (!parsedData || !parsedData.fields || !Array.isArray(parsedData.fields)) {
-      sendSSEMessage(controller, 'error', { message: 'Invalid form structure returned' });
+      
+      sendSSEMessage(controller, 'success', { 
+        message: 'Processing complete!', 
+        fields,
+        suggestedTitle,
+        stats: {
+          totalFields: fields.length,
+          fieldTypes: fields.reduce((acc: Record<string, number>, field: any) => {
+            acc[field.type] = (acc[field.type] || 0) + 1;
+            return acc;
+          }, {})
+        }
+      });
+    } catch (error) {
+      console.error('Error processing document:', error);
+      sendSSEMessage(controller, 'error', { message: 'Failed to process document content' });
       safelyCloseSession(controller, sessionId);
       return;
     }
-
-    // Send the final result
-    sendSSEMessage(controller, 'success', { 
-      message: 'Processing complete!', 
-      fields: parsedData.fields,
-      stats: {
-        totalFields: parsedData.fields.length,
-        fieldTypes: parsedData.fields.reduce((acc: any, field: any) => {
-          acc[field.type] = (acc[field.type] || 0) + 1;
-          return acc;
-        }, {})
-      }
-    });
     
     // Keep the connection open for a bit so the client can receive the success message
     setTimeout(() => {
@@ -416,15 +608,10 @@ async function processFileWithSSE(file: FormDataEntryValue | null, controller: R
 
 // Function to process file without streaming (regular API mode)
 async function processFile(file: Blob): Promise<any> {
-  // Check if Claude API key is available
-  if (!claudeApiKey) {
-    throw new Error('Claude API key is not configured');
+  // Check if OpenAI API key is available
+  if (!openaiApiKey) {
+    throw new Error('OpenAI API key is not configured');
   }
-
-  // Create Anthropic client
-  const anthropic = new Anthropic({
-    apiKey: claudeApiKey,
-  });
 
   // Check file type
   const filename = (file as any).name?.toLowerCase() || '';
@@ -449,99 +636,12 @@ async function processFile(file: Blob): Promise<any> {
     throw new Error('No text content found in the document');
   }
 
-  // Process the extracted text with Claude
-  const response = await anthropic.messages.create({
-    model: 'claude-3-7-sonnet-20250219',
-    max_tokens: 4000,
-    system: SYSTEM_PROMPT,
-    messages: [
-      { role: 'user', content: extractedText }
-    ],
-  });
-
-  // Extract and parse the JSON response
-  const responseContent = response.content.find(c => c.type === 'text')?.text;
-  
-  if (!responseContent) {
-    throw new Error('No text response from Claude');
-  }
-  
-  let parsedData;
-  
   try {
-    // Try to parse the entire response as JSON
-    parsedData = JSON.parse(responseContent);
-  } catch (e) {
-    // If that fails, try to extract JSON from the response
-    const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        // Попытка исправить неполный JSON
-        let jsonString = jsonMatch[0];
-        
-        // Проверка на незавершенный JSON и попытка его восстановления
-        const openBraces = (jsonString.match(/\{/g) || []).length;
-        const closeBraces = (jsonString.match(/\}/g) || []).length;
-        const openBrackets = (jsonString.match(/\[/g) || []).length;
-        const closeBrackets = (jsonString.match(/\]/g) || []).length;
-        
-        // Если скобки не сбалансированы, попробуем исправить JSON
-        if (openBraces > closeBraces || openBrackets > closeBrackets) {
-          console.log('Unbalanced JSON detected, attempting to repair');
-          
-          // Проверим и обработаем ситуацию с оборванным полем options или другими массивами
-          jsonString = jsonString.replace(/,\s*"options"\s*:\s*\[\s*"[^"]*"(?:\s*,\s*"[^"]*")*\s*$/g, 
-            (match) => match + ']');
-          
-          // Закрыть массив fields, если он незавершен
-          if (jsonString.includes('"fields": [') && openBrackets > closeBrackets) {
-            jsonString += ']';
-          }
-          
-          // Закрыть объект JSON если нужно
-          if (openBraces > closeBraces) {
-            jsonString += '}';
-          }
-        }
-        
-        parsedData = JSON.parse(jsonString);
-        
-        // Дополнительная проверка структуры полей
-        if (parsedData && parsedData.fields && Array.isArray(parsedData.fields)) {
-          // Проверить и исправить каждое поле
-          parsedData.fields = parsedData.fields.map((field: any, index: number) => {
-            const validField = { ...field };
-            
-            // Обеспечить наличие необходимых полей
-            if (!validField.id) validField.id = `field-${index + 1}`;
-            if (!validField.type) validField.type = 'text';
-            if (!validField.label) validField.label = `Field ${index + 1}`;
-            validField.required = !!validField.required;
-            validField.placeholder = validField.placeholder || '';
-            
-            // Обеспечить options для соответствующих типов полей
-            if ((validField.type === 'radio' || validField.type === 'checkbox' || validField.type === 'select') 
-                && (!Array.isArray(validField.options) || validField.options.length === 0)) {
-              validField.options = ['Option 1'];
-            }
-            
-            return validField;
-          });
-        }
-      } catch (e2) {
-        console.error('Failed to parse JSON from Claude response:', e2);
-        throw new Error('Failed to parse form structure');
-      }
-    } else {
-      console.error('No valid JSON found in Claude response');
-      throw new Error('Failed to extract form structure');
-    }
+    // Process the document, potentially in chunks
+    const fields = await processLargeDocument(extractedText);
+    return { fields };
+  } catch (error) {
+    console.error('Error processing document:', error);
+    throw new Error('Failed to process document content');
   }
-
-  // Validate the parsed data has a fields array
-  if (!parsedData || !parsedData.fields || !Array.isArray(parsedData.fields)) {
-    throw new Error('Invalid form structure returned');
-  }
-
-  return parsedData;
 } 

@@ -25,7 +25,7 @@ export default function FormsClient({ forms }: FormsClientProps) {
     // Store fields in sessionStorage to avoid URL length limitations
     sessionStorage.setItem('importedFields', JSON.stringify(fields));
     // Navigate to the import page
-    router.push('/admin/forms/import-word');
+    // router.push('/admin/forms/import-word');
   };
 
   return (

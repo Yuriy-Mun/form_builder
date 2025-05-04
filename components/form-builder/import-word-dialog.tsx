@@ -13,6 +13,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { FormField } from './form-field-editor';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { createClient } from '@/lib/supabase/client';
 
 interface ImportWordDialogProps {
   open: boolean;
@@ -33,6 +39,13 @@ interface MessageEvent {
   lastEventId: string;
 }
 
+type ImportFormData = {
+  title: string;
+  description: string;
+  active: boolean;
+  fields: FormField[];
+};
+
 export function ImportWordDialog({ open, onClose, onImportSuccess }: ImportWordDialogProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,6 +53,15 @@ export function ImportWordDialog({ open, onClose, onImportSuccess }: ImportWordD
   const [processStatuses, setProcessStatuses] = useState<ProcessStatus[]>([]);
   const [currentStatus, setCurrentStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [formData, setFormData] = useState<ImportFormData>({
+    title: '',
+    description: '',
+    active: true,
+    fields: []
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentTab, setCurrentTab] = useState<string>('upload');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -58,6 +80,90 @@ export function ImportWordDialog({ open, onClose, onImportSuccess }: ImportWordD
       }
     };
   }, [open]);
+
+  // Add this function to handle saving the form
+  const handleSaveForm = async () => {
+    if (formData.fields.length === 0) {
+      toast.error('No fields to save');
+      return;
+    }
+    
+    if (!formData.title.trim()) {
+      toast.error('Title is required');
+      return;
+    }
+    
+    setIsSaving(true);
+    
+    try {
+      // Create Supabase client
+      const supabase = createClient();
+      
+      // Get the current user
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !userData.user) {
+        toast.error('You must be logged in to create a form');
+        setTimeout(() => {
+          window.location.href = '/admin/login';
+        }, 1000);
+        return;
+      }
+      
+      // First, insert the form
+      const { data: formRecord, error: formError } = await supabase
+        .from('forms')
+        .insert({
+          title: formData.title,
+          description: formData.description || null,
+          active: formData.active,
+          created_by: userData.user.id
+        })
+        .select()
+        .single();
+      
+      if (formError) {
+        throw new Error(`Failed to create form: ${formError.message}`);
+      }
+      
+      if (!formRecord) {
+        throw new Error('Failed to create form: No data returned');
+      }
+      
+      // Then insert the form fields
+      const formattedFields = formData.fields.map((field, index) => ({
+        form_id: formRecord.id,
+        type: field.type,
+        label: field.label,
+        placeholder: field.placeholder || '',
+        required: !!field.required,
+        options: field.options && field.options.length > 0 ? field.options : null,
+        conditional_logic: field.conditional_logic || null,
+        position: index,
+      }));
+      
+      const { error: fieldsError } = await supabase
+        .from('form_fields')
+        .insert(formattedFields);
+        
+      if (fieldsError) {
+        throw new Error(`Failed to create form fields: ${fieldsError.message}`);
+      }
+      
+      toast.success('Form created successfully!');
+      onClose();
+      
+      // Redirect to the forms list after short delay
+      setTimeout(() => {
+        window.location.href = '/admin/forms';
+      }, 500);
+      
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save form');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -88,6 +194,13 @@ export function ImportWordDialog({ open, onClose, onImportSuccess }: ImportWordD
     setError(null);
     setProcessStatuses([]);
     setCurrentStatus('');
+    setShowSaveForm(false);
+    setFormData({
+      title: '',
+      description: '',
+      active: true,
+      fields: []
+    });
     
     // Check if file is a Word document
     if (!selectedFile.name.endsWith('.docx') && !selectedFile.name.endsWith('.doc')) {
@@ -110,6 +223,7 @@ export function ImportWordDialog({ open, onClose, onImportSuccess }: ImportWordD
     setError(null);
     setProcessStatuses([]);
     setCurrentStatus('Preparing to import...');
+    setShowSaveForm(false);
 
     try {
       // Close any existing EventSource
@@ -180,16 +294,29 @@ export function ImportWordDialog({ open, onClose, onImportSuccess }: ImportWordD
               label: field.label || 'Untitled Field',
               required: field.required !== undefined ? field.required : false,
               placeholder: field.placeholder || '',
-              options: field.options || []
+              options: field.options || [],
+              conditional_logic: field.conditional_logic
             }));
             
-            onImportSuccess(processedFields);
-            toast.success('Form questions imported successfully');
+            // Update form data with suggested title if available
+            setFormData({
+              title: data.suggestedTitle || file.name.replace(/\.(docx|doc)$/, ''),
+              description: '',
+              active: true,
+              fields: processedFields
+            });
             
-            // Give some time to see the success message before closing
-            setTimeout(() => {
-              onClose();
-            }, 1000);
+            // Show the save form option
+            setShowSaveForm(true);
+            
+            // Switch to the save tab
+            setCurrentTab('save');
+            
+            // Store fields for later use if needed, but DO NOT close the dialog
+            onImportSuccess(processedFields);
+
+            // Show a toast notification to indicate success
+            toast.success('Document processed successfully! You can now save your form.');
           }
         } catch (err) {
           console.error('Error parsing success event:', err);
@@ -248,127 +375,242 @@ export function ImportWordDialog({ open, onClose, onImportSuccess }: ImportWordD
     }
   };
 
-  const addStatus = (step: string, message: string, details?: string) => {
-    setProcessStatuses(prev => [...prev, { step, message, details }]);
+  const handleDialogClose = () => {
+    if (isLoading) {
+      if (confirm('Upload is in progress. Are you sure you want to cancel?')) {
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
+        onClose();
+      }
+    } else {
+      onClose();
+    }
   };
 
-  const handleDialogClose = () => {
-    // Clean up EventSource when dialog is closed
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+  const addStatus = (step: string, message: string, details?: string) => {
+    setProcessStatuses(prevStatuses => [
+      ...prevStatuses,
+      { step, message, details }
+    ]);
+  };
+
+  const renderStatusIcon = (step: string) => {
+    switch (step) {
+      case 'init':
+      case 'status':
+        return isLoading ? (
+          <IconLoader2 className="h-5 w-5 animate-spin text-primary" />
+        ) : (
+          <div className="h-5 w-5 rounded-full bg-primary/20" />
+        );
+      case 'success':
+        return <IconCheck className="h-5 w-5 text-green-500" />;
+      case 'error':
+        return <IconX className="h-5 w-5 text-red-500" />;
+      default:
+        return <div className="h-5 w-5 rounded-full bg-muted" />;
     }
-    
-    // Reset states
-    setFile(null);
-    setIsLoading(false);
-    setError(null);
-    setProcessStatuses([]);
-    setCurrentStatus('');
-    
-    onClose();
   };
 
   return (
     <Dialog open={open} onOpenChange={handleDialogClose}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Import Form Questions from Word</DialogTitle>
+          <DialogTitle>Import Form from Word Document</DialogTitle>
           <DialogDescription>
-            Upload a Word document containing your form questions. The AI will automatically extract and format them.
+            Upload a Word document to automatically convert it into a form.
           </DialogDescription>
         </DialogHeader>
 
-        {!isLoading ? (
-          // File selection UI
-          <div 
-            className={`
-              mt-4 flex flex-col items-center justify-center p-10 border-2 border-dashed 
-              rounded-lg transition-colors duration-200 cursor-pointer
-              ${isDragging ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-primary/50'}
-            `}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileInput}
-              accept=".doc,.docx"
-              className="hidden"
-            />
-            
-            <IconFileUpload 
-              size={48} 
-              className={`mb-4 ${isDragging ? 'text-primary' : 'text-gray-400'}`} 
-            />
-            
-            <p className="text-sm font-medium mb-1">
-              {file ? file.name : 'Drag & drop your Word file here'}
-            </p>
-            <p className="text-xs text-gray-500">
-              {file ? `${(file.size / 1024).toFixed(2)} KB` : 'or click to browse (.doc, .docx)'}
-            </p>
-          </div>
-        ) : (
-          // Processing status UI
-          <div className="mt-4 py-4">
-            <div className="mb-4 text-center">
-              <p className="text-lg font-medium mb-1">Processing your document</p>
-              <p className="text-sm text-muted-foreground">{currentStatus}</p>
-            </div>
-            
-            {/* Progress timeline */}
-            <div className="space-y-3 mt-6 max-h-[200px] overflow-y-auto pr-2">
-              {processStatuses.map((status, index) => (
-                <div key={index} className="flex items-start gap-3">
-                  <div className="mt-1 flex-shrink-0">
-                    {status.step === 'error' && <IconX className="h-5 w-5 text-red-500" />}
-                    {status.step === 'success' && <IconCheck className="h-5 w-5 text-green-500" />}
-                    {(status.step === 'status' || status.step === 'init') && (
-                      index === processStatuses.length - 1 ? (
-                        <IconLoader2 className="h-5 w-5 text-blue-500 animate-spin" />
-                      ) : (
-                        <div className="h-5 w-5 rounded-full bg-blue-100 border-2 border-blue-500"></div>
-                      )
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">{status.message}</p>
-                    {status.details && (
-                      <p className="text-xs text-muted-foreground">{status.details}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {error && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
-                <IconAlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-red-700">Error</p>
-                  <p className="text-sm text-red-600">{error}</p>
+        <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="upload">Upload</TabsTrigger>
+            <TabsTrigger value="save" disabled={!showSaveForm}>Save Form</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="upload" className="pt-4">
+            {!isLoading && !error && !showSaveForm && (
+              <div
+                className={`border-2 border-dashed rounded-lg p-8 text-center ${
+                  isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <div className="mx-auto flex flex-col items-center">
+                  <IconFileUpload className="h-10 w-10 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold">Drag & Drop or Click to Upload</h3>
+                  <p className="text-sm text-muted-foreground mt-1 mb-4">
+                    Support for .doc and .docx files
+                  </p>
+                  
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".doc,.docx"
+                    className="hidden"
+                    onChange={handleFileInput}
+                  />
+                  
+                  <Button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    variant="secondary"
+                  >
+                    Browse Files
+                  </Button>
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        <DialogFooter className="flex justify-between mt-6">
-          <Button variant="outline" onClick={handleDialogClose} disabled={isLoading && !error}>
-            {error ? 'Close' : 'Cancel'}
-          </Button>
-          {!isLoading && (
-            <Button 
-              onClick={handleImport} 
-              disabled={!file}
-              className="gap-2"
-            >
-              Import Questions
-            </Button>
+            {file && !isLoading && !error && !showSaveForm && (
+              <div className="mt-4 flex items-center justify-between p-3 bg-muted rounded-md">
+                <div className="flex items-center">
+                  <IconFileUpload className="h-5 w-5 text-primary mr-2" />
+                  <span className="text-sm font-medium truncate max-w-[200px]">
+                    {file.name}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleImport}
+                  disabled={isLoading}
+                >
+                  Process File
+                </Button>
+              </div>
+            )}
+
+            {isLoading && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4">
+                  <IconLoader2 className="h-5 w-5 animate-spin text-primary" />
+                  <div>
+                    <p className="font-medium">{currentStatus}</p>
+                  </div>
+                </div>
+                
+                <div className="border rounded-md p-4 space-y-3">
+                  {processStatuses.map((status, index) => (
+                    <div key={index} className="flex items-start space-x-3">
+                      <div className="mt-0.5">{renderStatusIcon(status.step)}</div>
+                      <div>
+                        <p className={`font-medium ${status.step === 'error' ? 'text-red-500' : ''}`}>
+                          {status.message}
+                        </p>
+                        {status.details && (
+                          <p className="text-sm text-muted-foreground mt-0.5">
+                            {status.details}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="mt-4 p-4 bg-red-50 text-red-800 rounded-md flex items-start space-x-3">
+                <IconAlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">Error</p>
+                  <p className="text-sm mt-1">{error}</p>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="save" className="space-y-4 pt-4">
+            {showSaveForm && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Form Title</Label>
+                  <Input 
+                    id="title" 
+                    value={formData.title}
+                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                    placeholder="Enter form title" 
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description (optional)</Label>
+                  <Textarea 
+                    id="description" 
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    placeholder="Enter form description" 
+                    rows={3}
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Switch 
+                    id="active"
+                    checked={formData.active}
+                    onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+                  />
+                  <Label htmlFor="active">Make form active immediately</Label>
+                </div>
+                
+                <div className="border rounded-md p-4 mt-4">
+                  <h3 className="font-medium mb-2">Form Fields Preview</h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {formData.fields.length} fields extracted from document
+                  </p>
+                  
+                  <div className="max-h-[200px] overflow-y-auto space-y-2">
+                    {formData.fields.map((field, index) => (
+                      <div key={field.id} className="flex justify-between p-2 rounded bg-muted text-sm">
+                        <div className="truncate max-w-[200px]">
+                          <span className="font-medium">{field.label}</span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          <span className="bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded">
+                            {field.type}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter>
+          {showSaveForm && currentTab === 'save' && (
+            <>
+              <Button variant="outline" onClick={() => setCurrentTab('upload')}>
+                Back
+              </Button>
+              <Button onClick={handleSaveForm} disabled={isSaving}>
+                {isSaving ? 'Saving...' : 'Save Form'}
+              </Button>
+            </>
+          )}
+          
+          {currentTab === 'upload' && (
+            <>
+              <Button variant="outline" onClick={handleDialogClose} disabled={isLoading}>
+                Cancel
+              </Button>
+              {showSaveForm && (
+                <Button onClick={() => setCurrentTab('save')} disabled={isLoading}>
+                  Continue to Save
+                </Button>
+              )}
+              {!showSaveForm && file && !isLoading && (
+                <Button onClick={handleImport} disabled={isLoading || !file}>
+                  Process File
+                </Button>
+              )}
+            </>
           )}
         </DialogFooter>
       </DialogContent>
