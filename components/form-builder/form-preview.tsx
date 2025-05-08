@@ -13,6 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { Star, StarIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface FormPreviewProps {
   formName: string;
@@ -98,9 +102,104 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
     return result;
   };
 
+  // Add a helper component to display field help text
+  const FieldHelpText = ({ field }: { field: FormField }) => {
+    if (!field.help_text) return null;
+    
+    return (
+      <div className="text-sm text-gray-500 mt-1">{field.help_text}</div>
+    );
+  };
+
+  // Helper function to validate field value based on validation rules
+  const validateField = (field: FormField, value: any): string | null => {
+    if (!field.validation_rules) return null;
+    
+    const rules = field.validation_rules;
+    
+    // Handle text, textarea, email, url, password
+    if (['text', 'textarea', 'email', 'url', 'password'].includes(field.type)) {
+      const strValue = String(value || '');
+      
+      if (rules.min !== undefined && strValue.length < rules.min) {
+        return `Must be at least ${rules.min} characters`;
+      }
+      
+      if (rules.max !== undefined && strValue.length > rules.max) {
+        return `Cannot exceed ${rules.max} characters`;
+      }
+      
+      if (rules.pattern && strValue) {
+        try {
+          const regex = new RegExp(rules.pattern);
+          if (!regex.test(strValue)) {
+            return 'Invalid format';
+          }
+        } catch (e) {
+          console.error('Invalid regex pattern:', rules.pattern);
+        }
+      }
+      
+      if (field.type === 'email' && rules.email && strValue) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(strValue)) {
+          return 'Invalid email address';
+        }
+      }
+      
+      if (field.type === 'url' && rules.url && strValue) {
+        try {
+          new URL(strValue);
+        } catch (e) {
+          return 'Invalid URL';
+        }
+      }
+    }
+    
+    // Handle number
+    if (field.type === 'number') {
+      const numValue = Number(value);
+      
+      if (isNaN(numValue)) {
+        return 'Must be a valid number';
+      }
+      
+      if (rules.min !== undefined && numValue < rules.min) {
+        return `Must be at least ${rules.min}`;
+      }
+      
+      if (rules.max !== undefined && numValue > rules.max) {
+        return `Cannot exceed ${rules.max}`;
+      }
+      
+      if (rules.integer && !Number.isInteger(numValue)) {
+        return 'Must be a whole number';
+      }
+    }
+    
+    return null;
+  };
+
+  // Add new state to track validation errors
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
   // Update field values for conditional logic
   const handleFieldChange = (fieldId: string, value: any) => {
     console.log(`Field ${fieldId} changed to: ${value}`);
+    
+    // Find the field being updated
+    const field = fields.find(f => f.id === fieldId);
+    
+    // Validate field value if it has validation rules
+    if (field) {
+      const error = validateField(field, value);
+      
+      // Update validation errors
+      setValidationErrors(prev => ({
+        ...prev,
+        [fieldId]: error || ''
+      }));
+    }
     
     // Обновляем значение текущего поля
     setFieldValues(prev => {
@@ -200,22 +299,137 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                   </div>
                   
                   {field.type === 'text' && (
-                    <Input
-                      id={field.id}
-                      placeholder={field.placeholder}
-                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                      value={fieldValues[field.id] || ''}
-                    />
+                    <>
+                      <Input
+                        id={field.id}
+                        placeholder={field.placeholder}
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        value={fieldValues[field.id] || ''}
+                        className={validationErrors[field.id] ? "border-red-500" : ""}
+                      />
+                      <FieldHelpText field={field} />
+                      {validationErrors[field.id] && (
+                        <div className="text-red-500 text-sm mt-1">{validationErrors[field.id]}</div>
+                      )}
+                    </>
+                  )}
+                  
+                  {field.type === 'email' && (
+                    <>
+                      <Input
+                        id={field.id}
+                        type="email"
+                        placeholder={field.placeholder || "email@example.com"}
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        value={fieldValues[field.id] || ''}
+                        className={validationErrors[field.id] ? "border-red-500" : ""}
+                      />
+                      <FieldHelpText field={field} />
+                      {validationErrors[field.id] && (
+                        <div className="text-red-500 text-sm mt-1">{validationErrors[field.id]}</div>
+                      )}
+                    </>
+                  )}
+
+                  {field.type === 'phone' && (
+                    <>
+                      <Input
+                        id={field.id}
+                        type="tel"
+                        placeholder={field.placeholder || "+1 (555) 000-0000"}
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        value={fieldValues[field.id] || ''}
+                        className={validationErrors[field.id] ? "border-red-500" : ""}
+                      />
+                      <FieldHelpText field={field} />
+                      {validationErrors[field.id] && (
+                        <div className="text-red-500 text-sm mt-1">{validationErrors[field.id]}</div>
+                      )}
+                    </>
+                  )}
+
+                  {field.type === 'url' && (
+                    <>
+                      <Input
+                        id={field.id}
+                        type="url"
+                        placeholder={field.placeholder || "https://example.com"}
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        value={fieldValues[field.id] || ''}
+                        className={validationErrors[field.id] ? "border-red-500" : ""}
+                      />
+                      <FieldHelpText field={field} />
+                      {validationErrors[field.id] && (
+                        <div className="text-red-500 text-sm mt-1">{validationErrors[field.id]}</div>
+                      )}
+                    </>
+                  )}
+
+                  {field.type === 'password' && (
+                    <>
+                      <Input
+                        id={field.id}
+                        type="password"
+                        placeholder={field.placeholder || "Enter password"}
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        value={fieldValues[field.id] || ''}
+                        className={validationErrors[field.id] ? "border-red-500" : ""}
+                      />
+                      <FieldHelpText field={field} />
+                      {validationErrors[field.id] && (
+                        <div className="text-red-500 text-sm mt-1">{validationErrors[field.id]}</div>
+                      )}
+                    </>
+                  )}
+
+                  {field.type === 'number' && (
+                    <>
+                      <Input
+                        id={field.id}
+                        type="number"
+                        placeholder={field.placeholder}
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        value={fieldValues[field.id] || ''}
+                        className={validationErrors[field.id] ? "border-red-500" : ""}
+                      />
+                      <FieldHelpText field={field} />
+                      {validationErrors[field.id] && (
+                        <div className="text-red-500 text-sm mt-1">{validationErrors[field.id]}</div>
+                      )}
+                    </>
                   )}
                   
                   {field.type === 'textarea' && (
-                    <Textarea
-                      id={field.id}
-                      placeholder={field.placeholder}
-                      className="min-h-[100px]"
-                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                      value={fieldValues[field.id] || ''}
-                    />
+                    <>
+                      <Textarea
+                        id={field.id}
+                        placeholder={field.placeholder}
+                        className={cn("min-h-[100px]", validationErrors[field.id] ? "border-red-500" : "")}
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        value={fieldValues[field.id] || ''}
+                      />
+                      <FieldHelpText field={field} />
+                      {validationErrors[field.id] && (
+                        <div className="text-red-500 text-sm mt-1">{validationErrors[field.id]}</div>
+                      )}
+                    </>
+                  )}
+
+                  {field.type === 'rich-text' && (
+                    <div className="border rounded-md p-3">
+                      <div className="flex mb-2 gap-2 border-b pb-2">
+                        <Button type="button" size="sm" variant="outline">B</Button>
+                        <Button type="button" size="sm" variant="outline">I</Button>
+                        <Button type="button" size="sm" variant="outline">U</Button>
+                      </div>
+                      <Textarea
+                        id={field.id}
+                        placeholder={field.placeholder || "Enter rich text..."}
+                        className="min-h-[150px] border-none focus-visible:ring-0 p-0"
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        value={fieldValues[field.id] || ''}
+                      />
+                    </div>
                   )}
                   
                   {field.type === 'select' && (
@@ -234,6 +448,50 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                         ))}
                       </SelectContent>
                     </Select>
+                  )}
+
+                  {field.type === 'multiselect' && (
+                    <div className="border rounded-md p-2">
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {Array.isArray(fieldValues[field.id]) && fieldValues[field.id].map((selected: string, idx: number) => (
+                          <div key={idx} className="bg-primary/10 text-primary rounded-md px-2 py-1 text-sm flex items-center">
+                            {selected}
+                            <button 
+                              type="button" 
+                              className="ml-1 text-primary/70 hover:text-primary"
+                              onClick={() => {
+                                const newValues = fieldValues[field.id].filter((v: string) => v !== selected);
+                                handleFieldChange(field.id, newValues);
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <Select 
+                        onValueChange={(value) => {
+                          const currentValues = Array.isArray(fieldValues[field.id]) ? fieldValues[field.id] : [];
+                          if (!currentValues.includes(value)) {
+                            handleFieldChange(field.id, [...currentValues, value]);
+                          }
+                        }}
+                        value=""
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={field.placeholder || "Select options"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {field.options?.map((option, index) => (
+                            <SelectItem key={index} value={option} disabled={
+                              Array.isArray(fieldValues[field.id]) && fieldValues[field.id].includes(option)
+                            }>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
                   
                   {field.type === 'radio' && (
@@ -303,6 +561,198 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                       onChange={(e) => handleFieldChange(field.id, e.target.value)}
                       value={fieldValues[field.id] || ''}
                     />
+                  )}
+
+                  {field.type === 'time' && (
+                    <Input
+                      id={field.id}
+                      type="time"
+                      placeholder={field.placeholder}
+                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                      value={fieldValues[field.id] || ''}
+                    />
+                  )}
+
+                  {field.type === 'datetime' && (
+                    <Input
+                      id={field.id}
+                      type="datetime-local"
+                      placeholder={field.placeholder}
+                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                      value={fieldValues[field.id] || ''}
+                    />
+                  )}
+
+                  {field.type === 'file' && (
+                    <div className="flex flex-col gap-2">
+                      <Input
+                        id={field.id}
+                        type="file"
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        className="file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                      />
+                      {fieldValues[field.id] && (
+                        <div className="text-sm text-gray-500">
+                          Selected file: {fieldValues[field.id].split('\\').pop()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {field.type === 'range' && (
+                    <div className="space-y-2">
+                      <Slider
+                        id={field.id}
+                        defaultValue={[50]}
+                        max={100}
+                        step={1}
+                        onValueChange={(value) => handleFieldChange(field.id, value[0])}
+                      />
+                      <div className="text-center text-sm">
+                        Value: {fieldValues[field.id] || 50}
+                      </div>
+                    </div>
+                  )}
+
+                  {field.type === 'color' && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id={field.id}
+                        type="color"
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        value={fieldValues[field.id] || '#000000'}
+                        className="w-12 h-10 p-1"
+                      />
+                      <span className="text-sm">
+                        {fieldValues[field.id] || '#000000'}
+                      </span>
+                    </div>
+                  )}
+
+                  {field.type === 'rating' && (
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => handleFieldChange(field.id, star)}
+                          className="text-gray-300 hover:text-yellow-400"
+                        >
+                          <StarIcon 
+                            className={cn(
+                              "w-6 h-6",
+                              Number(fieldValues[field.id]) >= star ? "fill-yellow-400 text-yellow-400" : ""
+                            )}
+                          />
+                        </button>
+                      ))}
+                      {fieldValues[field.id] && (
+                        <span className="ml-2 text-sm">
+                          ({fieldValues[field.id]} of 5)
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {field.type === 'toggle' && (
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id={field.id}
+                        checked={Boolean(fieldValues[field.id])}
+                        onCheckedChange={(checked) => handleFieldChange(field.id, checked)}
+                      />
+                      <Label htmlFor={field.id}>
+                        {Boolean(fieldValues[field.id]) ? 'On' : 'Off'}
+                      </Label>
+                    </div>
+                  )}
+
+                  {field.type === 'signature' && (
+                    <div className="border rounded-md p-2 min-h-[100px] bg-gray-50 flex flex-col items-center justify-center">
+                      {fieldValues[field.id] ? (
+                        <div className="w-full">
+                          <div className="border-b-2 border-black p-2 text-center italic">
+                            {fieldValues[field.id]}
+                          </div>
+                          <div className="text-center">
+                            <button 
+                              type="button" 
+                              className="text-xs mt-2 text-gray-500 hover:text-gray-700"
+                              onClick={() => handleFieldChange(field.id, '')}
+                            >
+                              Clear signature
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <p className="text-gray-500 mb-2">Click below to sign</p>
+                          <Button 
+                            type="button" 
+                            variant="outline"
+                            onClick={() => {
+                              const name = prompt("Enter your name for signature:");
+                              if (name) handleFieldChange(field.id, name);
+                            }}
+                          >
+                            Sign here
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {field.type === 'captcha' && (
+                    <div className="border rounded-md p-3">
+                      <div className="flex flex-col gap-2">
+                        <div className="bg-gray-100 p-3 text-center">
+                          <p className="text-gray-800 font-mono text-lg tracking-widest">
+                            {fieldValues[field.id]?.code || 'CAPTCHA12'}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Enter the code above"
+                            onChange={(e) => {
+                              const userInput = e.target.value;
+                              const code = fieldValues[field.id]?.code || 'CAPTCHA12';
+                              const isValid = userInput === code;
+                              
+                              handleFieldChange(field.id, {
+                                code,
+                                input: userInput,
+                                isValid
+                              });
+                            }}
+                            value={fieldValues[field.id]?.input || ''}
+                          />
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => {
+                              // Generate a new random code
+                              const newCode = 'CAPTCHA' + Math.floor(Math.random() * 100);
+                              handleFieldChange(field.id, { 
+                                code: newCode, 
+                                input: '',
+                                isValid: false
+                              });
+                            }}
+                            className="shrink-0"
+                          >
+                            Refresh
+                          </Button>
+                        </div>
+                        {fieldValues[field.id]?.input && (
+                          <div className={cn(
+                            "text-sm",
+                            fieldValues[field.id]?.isValid ? "text-green-600" : "text-red-600"
+                          )}>
+                            {fieldValues[field.id]?.isValid ? 'Verified ✓' : 'Invalid code'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               );

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImportWordDialog } from '@/components/form-builder/import-word-dialog';
 import { FormField } from '@/components/form-builder/form-field-editor';
+import { createBrowserClient } from '@supabase/ssr';
 
 interface Form {
   id: string;
@@ -11,6 +12,7 @@ interface Form {
   description: string | null;
   active: boolean;
   created_at: string;
+  created_by?: string; // This maps to auth.users(id), updated from user_id
 }
 
 interface FormsClientProps {
@@ -21,11 +23,71 @@ export default function FormsClient({ forms }: FormsClientProps) {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const router = useRouter();
 
+  // Initialize Supabase client component-side
+  // Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are in your .env.local
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   const handleImportSuccess = (fields: FormField[]) => {
     // Store fields in sessionStorage to avoid URL length limitations
     sessionStorage.setItem('importedFields', JSON.stringify(fields));
-    // Navigate to the import page
     // router.push('/admin/forms/import-word');
+  };
+
+  const handleCreateNewForm = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError) {
+        console.error('Error fetching user:', userError);
+        // Handle error (e.g., show a notification to the user)
+        alert('Error fetching user data. Please try again.');
+        return;
+      }
+
+      if (!user) {
+        console.error('User not authenticated');
+        // Handle case where user is not authenticated (e.g., redirect to login)
+        alert('You must be logged in to create a form.');
+        router.push('/admin/login'); // Or your login page
+        return;
+      }
+
+      // Using 'created_by' instead of 'user_id' to match the database schema
+      const { data: newForm, error: insertError } = await supabase
+        .from('forms')
+        .insert({
+          title: 'Untitled',
+          created_by: user.id, // Associate form with the current user using the correct column name
+          description: null,
+          active: true,
+          // The other fields (created_at, updated_at) have database defaults
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Error creating form with Supabase:', insertError);
+        // Handle Supabase-specific errors
+        alert(`Failed to create form: ${insertError.message}`);
+        throw new Error(insertError.message);
+      }
+
+      if (!newForm) {
+        console.error('No data returned after insert');
+        alert('Failed to create form. Please try again.');
+        throw new Error('Failed to create form, no data returned from Supabase.');
+      }
+
+      console.log('Form created successfully:', newForm);
+      router.push(`/admin/forms/edit/${newForm.id}`);
+    } catch (error) {
+      console.error('Client-side error creating form:', error);
+      // Display a generic error message or use a toast notification system
+      alert('An error occurred. Please check console for details.');
+    }
   };
 
   return (
@@ -39,12 +101,12 @@ export default function FormsClient({ forms }: FormsClientProps) {
           >
             Import from Word
           </button>
-          <a 
-            href="/admin/forms/add" 
+          <button
+            onClick={handleCreateNewForm}
             className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
           >
             Create New Form
-          </a>
+          </button>
         </div>
       </div>
 

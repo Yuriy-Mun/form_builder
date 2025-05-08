@@ -1,135 +1,158 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { FormBuilder, FormValues } from '@/components/form-builder/form-builder';
-import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { LayoutTemplate, Wand2, Settings2, Code } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+
+// Импорт хранилищ и утилит
+import { loadFormWithFields, isFormDataLoaded, getFormErrors } from '@/lib/store/form-utils';
+import { useFormMetaStore } from '@/lib/store/form-meta-store';
+import { useFormFieldsStore } from '@/lib/store/form-fields-store';
+import { useFormUIStore } from '@/lib/store/form-ui-store';
+
+// Component imports
+import { FormHeader } from '@/components/form-builder/form-header';
+import { FieldTypeSidebar } from '@/components/form-builder/field-type-sidebar';
+import { FormCanvas } from '@/components/form-builder/form-canvas';
+import { FormPropertiesPanel } from '@/components/form-builder/form-properties-panel';
+import { ThemeTab } from '@/components/form-builder/theme-tab';
+import { SettingsTab } from '@/components/form-builder/settings-tab';
+import { CodeTab } from '@/components/form-builder/code-tab';
+import { DevicePreview } from '@/components/form-builder/device-preview';
 
 export default function EditFormPage() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isUserChecking, setIsUserChecking] = useState(true);
-  const [formData, setFormData] = useState<FormValues | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const router = useRouter();
-  const params = useParams();
-  const formId = params.id as string;
-
-  // Get the current user ID first
+  const params = useParams<{ id: string }>();
+  const formId = params.id;
+  
+  // Локальное состояние для UI
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [formLoaded, setFormLoaded] = useState(false);
+  
+  // Загружаем данные формы при монтировании
   useEffect(() => {
-    async function getCurrentUser() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        setUserId(user?.id || null);
-      } catch (error) {
-        console.error('Error getting user:', error);
-      } finally {
-        setIsUserChecking(false);
-      }
+    if (formId) {
+      const loadData = async () => {
+        try {
+          await loadFormWithFields(formId);
+          setFormLoaded(true);
+        } catch (err) {
+          console.error('Failed to load form:', err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      loadData();
     }
+  }, [formId]);
+  
+  // Подписываемся на изменения состояния загрузки и ошибок
+  useEffect(() => {
+    // Подписываемся на изменения в хранилищах
+    const unsubscribeMeta = useFormMetaStore.subscribe(
+      (state) => {
+        setLoading(state.loading);
+        if (state.error) setError(state.error);
+      }
+    );
     
-    getCurrentUser();
+    const unsubscribeFields = useFormFieldsStore.subscribe(
+      (state) => {
+        // Обновляем loading, только если он изменился на true
+        if (state.loading) setLoading(true);
+        if (state.error) setError(state.error);
+      }
+    );
+    
+    // Получаем текущее состояние
+    const isLoaded = isFormDataLoaded();
+    setFormLoaded(isLoaded);
+    
+    // Проверяем наличие ошибок
+    const currentError = getFormErrors();
+    if (currentError) setError(currentError);
+    
+    // Очищаем подписки при размонтировании
+    return () => {
+      unsubscribeMeta();
+      unsubscribeFields();
+    };
   }, []);
 
-  // Load form data after we have the user ID
-  useEffect(() => {
-    async function loadForm() {
-      if (isUserChecking) return; // Wait until user check is complete
-      
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('forms')
-          .select('*')
-          .eq('id', formId)
-          .single();
-
-        if (error) {
-          throw error;
-        }
-
-        setFormData({
-          title: data.title,
-          description: data.description || '',
-          active: data.active,
-        });
-      } catch (error: any) {
-        console.error('Error loading form:', error);
-        toast.error(error.message || 'Failed to load form data');
-        router.push('/admin/forms');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    if (formId) {
-      loadForm();
-    }
-  }, [formId, router, isUserChecking]);
-
-  async function handleSaveForm(values: FormValues) {
-    if (!values.title) {
-      toast.error('Title is required');
-      return;
-    }
-    
-    if (!userId) {
-      toast.error('You must be logged in to update a form');
-      router.push('/admin/login');
-      return;
-    }
-    
-    try {
-      const { error } = await supabase
-        .from('forms')
-        .update({
-          title: values.title,
-          description: values.description || null,
-          active: values.active,
-        })
-        .eq('id', formId);
-
-      if (error) {
-        throw error;
-      }
-
-      toast.success('Form updated successfully');
-      router.push('/admin/forms');
-      router.refresh();
-    } catch (error: any) {
-      console.error('Error updating form:', error);
-      toast.error(error.message || 'Failed to update form');
-    }
+  // Отображаем состояние загрузки
+  if (loading) {
+    return <div className="flex justify-center items-center h-screen">Loading form editor...</div>;
   }
 
-  function handleCancel() {
-    router.push('/admin/forms');
+  // Отображаем ошибку, если есть
+  if (error) {
+    return <div className="flex justify-center items-center h-screen text-red-500">Error: {error}</div>;
   }
 
-  if (isUserChecking || isLoading) {
-    return (
-      <div className="container mx-auto py-10">
-        <div className="flex items-center justify-center h-64">
-          <p className="text-lg text-muted-foreground">
-            {isUserChecking ? 'Checking user permissions...' : 'Loading form data...'}
-          </p>
-        </div>
-      </div>
-    );
+  // Проверяем, что форма загружена
+  if (!formLoaded) {
+    return <div className="flex justify-center items-center h-screen">Form not found.</div>;
   }
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-8">Edit Form</h1>
-      {formData && (
-        <FormBuilder 
-          onSave={handleSaveForm} 
-          initialData={formData} 
-          isEditing={true}
-          onCancel={handleCancel}
-          showRedirectSuccess={true}
-        />
-      )}
+    <div className="flex flex-col h-screen p-4 md:p-6 bg-background">
+      {/* Header with form title and status */}
+      <FormHeader />
+
+      {/* Main Tabs Interface */}
+      <Tabs defaultValue="editor" className="flex-grow flex flex-col min-h-0">
+        <div className="flex justify-between items-center mb-4">
+          <TabsList>
+            <TabsTrigger value="editor" className="gap-1.5">
+              <LayoutTemplate className="h-4 w-4" />
+              <span>Editor</span>
+            </TabsTrigger>
+            <TabsTrigger value="theme" className="gap-1.5">
+              <Wand2 className="h-4 w-4" />
+              <span>Theme & Style</span>
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="gap-1.5">
+              <Settings2 className="h-4 w-4" />
+              <span>Settings</span>
+            </TabsTrigger>
+            <TabsTrigger value="code" className="gap-1.5">
+              <Code className="h-4 w-4" />
+              <span>Code</span>
+            </TabsTrigger>
+          </TabsList>
+          
+          <DevicePreview />
+        </div>
+
+        {/* Form Editor Tab */}
+        <TabsContent value="editor" className="flex-grow flex flex-col md:flex-row gap-6 overflow-hidden">
+          {/* Left Sidebar: Field Types */}
+          <FieldTypeSidebar />
+
+          {/* Middle: Form Canvas */}
+          <FormCanvas />
+
+          {/* Right Sidebar: Properties Panel */}
+          <FormPropertiesPanel />
+        </TabsContent>
+
+        {/* Theme Tab */}
+        <TabsContent value="theme" className="flex-grow">
+          <ThemeTab />
+        </TabsContent>
+
+        {/* Settings Tab */}
+        <TabsContent value="settings" className="flex-grow">
+          <SettingsTab />
+        </TabsContent>
+
+        {/* Code Tab */}
+        <TabsContent value="code" className="flex-grow">
+          <CodeTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
-} 
+}

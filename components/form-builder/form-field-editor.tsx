@@ -20,12 +20,15 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { IconGripVertical, IconPlus, IconEye } from '@tabler/icons-react';
+import { GripVertical, Plus, Eye } from 'lucide-react';
 import { FieldEditor } from './field-editor';
 import { FormPreview } from './form-preview';
 
 // Define the form field types
-export type FieldType = 'text' | 'textarea' | 'checkbox' | 'radio' | 'select' | 'date';
+export type FieldType = 'text' | 'textarea' | 'checkbox' | 'radio' | 'select' | 'date' | 
+  'email' | 'phone' | 'url' | 'password' | 'number' | 'time' | 'datetime' | 
+  'file' | 'range' | 'color' | 'rating' | 'toggle' | 'rich-text' | 'signature' | 
+  'captcha' | 'multiselect';
 
 export interface FormField {
   id: string;
@@ -34,6 +37,18 @@ export interface FormField {
   required: boolean;
   options?: string[]; // For radio, checkbox, select
   placeholder?: string;
+  help_text?: string; // Added help text
+  validation_rules?: {
+    min?: number; // Min length for text, min value for number
+    max?: number; // Max length for text, max value for number
+    pattern?: string; // Regex pattern for validation
+    email?: boolean; // Is valid email format
+    url?: boolean; // Is valid URL format
+    date?: boolean; // Is valid date format
+    numeric?: boolean; // Contains only numbers
+    integer?: boolean; // Is a valid integer
+    alphanumeric?: boolean; // Contains only letters and numbers
+  };
   conditional_logic?: {
     dependsOn?: string; // ID of the field this field depends on
     condition?: 'equals' | 'not_equals' | 'contains' | 'not_contains'; // Type of condition
@@ -69,7 +84,7 @@ function SortableFieldItem({ field, onEdit, onDelete }: SortableFieldItemProps) 
             {...attributes} 
             {...listeners}
           >
-            <IconGripVertical size={20} />
+            <GripVertical size={20} />
           </div>
           <CardContent className="flex-1 py-4">
             <div className="flex justify-between items-center">
@@ -107,27 +122,27 @@ function FieldSelector({ onAddField }: FieldSelectorProps) {
       <CardContent>
         <div className="grid grid-cols-3 gap-3">
           <Button onClick={() => onAddField('text')} variant="outline" className="justify-start">
-            <IconPlus size={16} className="mr-2" />
+            <Plus size={16} className="mr-2" />
             Text Input
           </Button>
           <Button onClick={() => onAddField('textarea')} variant="outline" className="justify-start">
-            <IconPlus size={16} className="mr-2" />
+            <Plus size={16} className="mr-2" />
             Text Area
           </Button>
           <Button onClick={() => onAddField('checkbox')} variant="outline" className="justify-start">
-            <IconPlus size={16} className="mr-2" />
+            <Plus size={16} className="mr-2" />
             Checkbox
           </Button>
           <Button onClick={() => onAddField('radio')} variant="outline" className="justify-start">
-            <IconPlus size={16} className="mr-2" />
+            <Plus size={16} className="mr-2" />
             Radio Buttons
           </Button>
           <Button onClick={() => onAddField('select')} variant="outline" className="justify-start">
-            <IconPlus size={16} className="mr-2" />
+            <Plus size={16} className="mr-2" />
             Dropdown
           </Button>
           <Button onClick={() => onAddField('date')} variant="outline" className="justify-start">
-            <IconPlus size={16} className="mr-2" />
+            <Plus size={16} className="mr-2" />
             Date Picker
           </Button>
         </div>
@@ -155,7 +170,12 @@ export function FormFieldEditor({
 }: FormFieldEditorProps) {
   // Validate initial fields
   const validatedInitialFields = useMemo(() => {
-    const validTypes: FieldType[] = ['text', 'textarea', 'checkbox', 'radio', 'select', 'date'];
+    const validTypes: FieldType[] = [
+      'text', 'textarea', 'checkbox', 'radio', 'select', 'date',
+      'email', 'phone', 'url', 'password', 'number', 'time', 'datetime',
+      'file', 'range', 'color', 'rating', 'toggle', 'rich-text', 'signature',
+      'captcha', 'multiselect'
+    ];
     
     return initialFields.map(field => {
       // Create a new object to avoid mutating the original
@@ -166,8 +186,9 @@ export function FormFieldEditor({
         validField.type = 'text'; // Default to text if the type is invalid
       }
       
-      // Ensure radio, checkbox, and select fields have options
-      if ((validField.type === 'radio' || validField.type === 'select' || validField.type === 'checkbox') 
+      // Ensure fields that need options have them
+      if ((validField.type === 'radio' || validField.type === 'select' || 
+           validField.type === 'checkbox' || validField.type === 'multiselect') 
           && (!validField.options || validField.options.length === 0)) {
         validField.options = ['Option 1'];
       }
@@ -274,6 +295,7 @@ export function FormFieldEditor({
   }
 
   if (isEditorOpen) {
+    console.log("isEditorOpen", isEditorOpen);
     return (
       <FieldEditor
         field={currentField}
@@ -294,7 +316,7 @@ export function FormFieldEditor({
           <CardTitle className="text-lg">Form Fields</CardTitle>
           {fields.length > 0 && (
             <Button variant="outline" onClick={togglePreview}>
-              <IconEye size={16} className="mr-2" />
+              <Eye size={16} className="mr-2" />
               Preview Form
             </Button>
           )}
