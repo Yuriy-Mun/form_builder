@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import type { Permission, PermissionFormData } from '@/lib/types'
+import type { PermissionFormData } from '@/lib/types'
 
 // Клиентский компонент для редактирования разрешений
 export default function EditPermissionClient({ id }: { id: string }) {
@@ -20,6 +20,8 @@ export default function EditPermissionClient({ id }: { id: string }) {
     name: '',
     slug: '',
   })
+
+  const supabase = getSupabaseClient()
 
   // Fetch permission data
   useEffect(() => {

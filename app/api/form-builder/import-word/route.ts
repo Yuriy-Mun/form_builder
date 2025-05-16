@@ -3,8 +3,7 @@ import { openai } from '@ai-sdk/openai';
 import { generateObject, generateText } from 'ai';
 import * as mammoth from 'mammoth';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/client';
-import { cookies } from 'next/headers';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 // Check for OpenAI API key
 const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -67,7 +66,7 @@ const CreateFormSchema = z.object({
 
 // Helper function to create a Supabase client with admin privileges
 function createServerClient() {
-  return createClient();
+  return getSupabaseClient();
 }
 
 // Helper function to send SSE messages

@@ -11,6 +11,7 @@ import {
   IconSettings,
   IconUserShield,
   IconClipboardList,
+  IconChartBar,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -43,6 +44,13 @@ const data = {
       url: "/admin/forms",
       icon: IconClipboardList,
       actionUrl: "/admin/forms/add",
+      actionIcon: IconPlus,
+    },
+    {
+      title: "Dashboards",
+      url: "/admin/dashboards",
+      icon: IconChartBar,
+      actionUrl: "/admin/dashboards/add",
       actionIcon: IconPlus,
     },
     {

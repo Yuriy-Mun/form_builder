@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,8 @@ export default function PermissionsTable() {
     name: '',
     slug: '',
   });
+
+  const supabase = getSupabaseClient()
 
   // Fetch permissions on load
   useEffect(() => {

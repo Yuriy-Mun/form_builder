@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FormBuilder, FormValues } from '@/components/form-builder/form-builder';
 import { FormFieldEditor, FormField } from '@/components/form-builder/form-field-editor';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { checkUserPermissions } from '@/lib/supabase/forms';
 import { syncAuthUserWithDatabase } from '@/lib/supabase/user-sync';
 
@@ -77,7 +77,7 @@ export default function AddFormPage() {
     setIsSubmitting(true);
     
     try {
-      const supabase = createClient();
+      const supabase = getSupabaseClient();
       
       // First, insert the form
       const { data: formData, error: formError } = await supabase

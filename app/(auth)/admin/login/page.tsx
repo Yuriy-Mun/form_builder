@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -18,7 +18,7 @@ export default function AdminLoginPage() {
   const redirectedFrom = searchParams.get('redirectedFrom') || '/admin';
   
   // Create the Supabase client using our utility function
-  const supabase = createClient();
+  const supabase = getSupabaseClient();
   
   useEffect(() => {
     // Check if already authenticated using getUser for security

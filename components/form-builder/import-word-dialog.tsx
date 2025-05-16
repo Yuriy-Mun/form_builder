@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface ImportWordDialogProps {
   open: boolean;
@@ -97,7 +97,7 @@ export function ImportWordDialog({ open, onClose, onImportSuccess }: ImportWordD
     
     try {
       // Create Supabase client
-      const supabase = createClient();
+      const supabase = getSupabaseClient();
       
       // Get the current user
       const { data: userData, error: userError } = await supabase.auth.getUser();

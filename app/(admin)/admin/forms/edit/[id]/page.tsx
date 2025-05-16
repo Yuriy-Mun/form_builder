@@ -9,7 +9,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { loadFormWithFields, isFormDataLoaded, getFormErrors } from '@/lib/store/form-utils';
 import { useFormMetaStore } from '@/lib/store/form-meta-store';
 import { useFormFieldsStore } from '@/lib/store/form-fields-store';
-import { useFormUIStore } from '@/lib/store/form-ui-store';
 
 // Component imports
 import { FormHeader } from '@/components/form-builder/form-header';
@@ -19,7 +18,6 @@ import { FormPropertiesPanel } from '@/components/form-builder/form-properties-p
 import { ThemeTab } from '@/components/form-builder/theme-tab';
 import { SettingsTab } from '@/components/form-builder/settings-tab';
 import { CodeTab } from '@/components/form-builder/code-tab';
-import { DevicePreview } from '@/components/form-builder/device-preview';
 
 export default function EditFormPage() {
   const params = useParams<{ id: string }>();
@@ -97,7 +95,7 @@ export default function EditFormPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen p-4 md:p-6 bg-background">
+    <>
       {/* Header with form title and status */}
       <FormHeader />
 
@@ -122,8 +120,6 @@ export default function EditFormPage() {
               <span>Code</span>
             </TabsTrigger>
           </TabsList>
-          
-          <DevicePreview />
         </div>
 
         {/* Form Editor Tab */}
@@ -153,6 +149,6 @@ export default function EditFormPage() {
           <CodeTab />
         </TabsContent>
       </Tabs>
-    </div>
+    </>
   );
 }

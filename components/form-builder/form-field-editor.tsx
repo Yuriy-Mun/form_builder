@@ -1,19 +1,19 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  DndContext, 
-  closestCenter, 
-  KeyboardSensor, 
-  PointerSensor, 
-  useSensor, 
+import { useState, useMemo } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
   useSensors,
   DragEndEvent
 } from '@dnd-kit/core';
-import { 
-  arrayMove, 
-  SortableContext, 
-  sortableKeyboardCoordinates, 
-  verticalListSortingStrategy, 
-  useSortable 
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
@@ -35,7 +35,7 @@ export interface FormField {
   type: FieldType;
   label: string;
   required: boolean;
-  options?: string[]; // For radio, checkbox, select
+  options?: { label: string; value: string }[]; // For radio, checkbox, select
   placeholder?: string;
   help_text?: string; // Added help text
   validation_rules?: {
@@ -190,7 +190,7 @@ export function FormFieldEditor({
       if ((validField.type === 'radio' || validField.type === 'select' || 
            validField.type === 'checkbox' || validField.type === 'multiselect') 
           && (!validField.options || validField.options.length === 0)) {
-        validField.options = ['Option 1'];
+        validField.options = [{ label: 'Option 1', value: 'option1' }];
       }
       
       return validField;
@@ -218,7 +218,7 @@ export function FormFieldEditor({
       label: `New ${type} field`,
       required: false,
       placeholder: '',
-      ...(type === 'radio' || type === 'select' || type === 'checkbox' ? { options: ['Option 1'] } : {})
+      ...(type === 'radio' || type === 'select' || type === 'checkbox' ? { options: [{ label: 'Option 1', value: 'option1' }] } : {})
     };
     
     setCurrentField(newField);

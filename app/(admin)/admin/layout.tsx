@@ -1,19 +1,10 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import Link from "next/link"
-import { LogOut } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import AdminLogoutButton from "@/components/admin/AdminLogoutButton"
 import { SidebarInset } from "@/components/ui/sidebar"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { SiteHeader } from "@/components/site-header"
-import { AdminSidebar } from "@/components/admin/AdminSidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { AuthProvider } from "@/components/admin/AuthProvider"
-import { AuthAwareUI } from "@/components/admin/AuthAwareUI"
 import { SupabaseSessionProvider } from "@/components/admin/SupabaseSessionProvider"
-
-const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Admin Dashboard",

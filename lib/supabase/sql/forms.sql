@@ -57,7 +57,7 @@ CREATE POLICY admin_forms_policy ON forms
       JOIN roles r ON u.role_id = r.id
       JOIN roles_permissions rp ON r.id = rp.role_id
       JOIN permissions p ON rp.permission_id = p.id
-      WHERE u.id = auth.uid() 
+      WHERE u.id = (select auth.uid()) 
       AND p.slug = 'admin.access'
       AND r.active = true
     )
@@ -65,7 +65,7 @@ CREATE POLICY admin_forms_policy ON forms
 
 -- Users can see and manage their own forms
 CREATE POLICY user_forms_policy ON forms
-  USING (created_by = auth.uid());
+  USING (created_by = (select auth.uid()));
 
 -- Users can see active forms
 CREATE POLICY view_active_forms_policy ON forms

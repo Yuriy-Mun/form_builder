@@ -88,13 +88,6 @@ export function FormCanvas() {
       {/* Canvas Header */}
       <div className="flex items-center justify-between p-3 border-b bg-muted/30">
         <h2 className="text-sm font-medium">Form Canvas</h2>
-        
-        {/* Canvas Actions */}
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-8 text-xs">
-            + Section
-          </Button>
-        </div>
       </div>
       
       {/* Canvas Content - Form Builder */}

@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Form,
   FormControl,
@@ -44,7 +42,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { IconPlus, IconX } from '@tabler/icons-react';
+import { IconPlus } from '@tabler/icons-react';
 import { X } from 'lucide-react';
 
 // Define the form field types
@@ -1233,9 +1231,9 @@ export function FieldEditor({ field, isOpen, onClose, onSave, allFields = [] }: 
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent>
-                                        {dependentField.options?.map((option) => (
-                                          <SelectItem key={option} value={option}>
-                                            {option}
+                                        {dependentField.options?.map((option: any) => (
+                                          <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
                                           </SelectItem>
                                         ))}
                                       </SelectContent>

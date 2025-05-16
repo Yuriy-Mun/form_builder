@@ -34,6 +34,14 @@ interface ValidationRules {
   max_file_size?: string;
 }
 
+interface ConditionalLogic {
+  enabled?: boolean;
+  action?: 'show' | 'hide';  // What to do when condition is met
+  depends_on?: string;  // ID of the field this field depends on
+  condition?: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'greater_than' | 'less_than' | 'is_empty' | 'is_not_empty';
+  value?: string;  // Value to compare against
+}
+
 export interface FormField {
   id: string;
   form_id: string;
@@ -43,7 +51,7 @@ export interface FormField {
   help_text?: string;
   options?: any;
   required?: boolean;
-  conditional_logic?: any;
+  conditional_logic?: ConditionalLogic;
   validation_rules?: ValidationRules;
   position: number;
   active?: boolean;

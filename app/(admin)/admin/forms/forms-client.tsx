@@ -5,6 +5,24 @@ import { useRouter } from 'next/navigation';
 import { ImportWordDialog } from '@/components/form-builder/import-word-dialog';
 import { FormField } from '@/components/form-builder/form-field-editor';
 import { createBrowserClient } from '@supabase/ssr';
+import {
+  Edit,
+  MessageSquare,
+  ExternalLink,
+  BarChart3,
+  Calendar,
+  CheckCircle2,
+  XCircle,
+  Plus,
+  FileText,
+  Search
+} from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Form {
   id: string;
@@ -21,6 +39,7 @@ interface FormsClientProps {
 
 export default function FormsClient({ forms }: FormsClientProps) {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const router = useRouter();
 
   // Initialize Supabase client component-side
@@ -90,23 +109,46 @@ export default function FormsClient({ forms }: FormsClientProps) {
     }
   };
 
+  // Filter forms based on search term
+  const filteredForms = forms.filter(form => 
+    form.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (form.description && form.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Forms Management</h1>
-        <div className="flex gap-3">
-          <button 
-            onClick={() => setIsImportDialogOpen(true)}
-            className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90"
-          >
-            Import from Word
-          </button>
-          <button
-            onClick={handleCreateNewForm}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            Create New Form
-          </button>
+    <>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-3xl font-bold tracking-tight">Forms</h1>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setIsImportDialogOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-800 rounded-md border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+            >
+              <FileText className="h-4 w-4" />
+              <span>Import from Word</span>
+            </button>
+            <button
+              onClick={handleCreateNewForm}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-all shadow-sm"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Form</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <Search className="h-4 w-4 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            className="block w-full pl-10 pr-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            placeholder="Search forms..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
       </div>
 
@@ -116,46 +158,128 @@ export default function FormsClient({ forms }: FormsClientProps) {
         onImportSuccess={handleImportSuccess} 
       />
 
-      {forms && forms.length > 0 ? (
-        <div className="grid gap-6">
-          {forms.map((form) => (
-            <div key={form.id} className="bg-card text-card-foreground rounded-lg border shadow-sm p-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-xl font-semibold">{form.title}</h2>
-                  <p className="text-muted-foreground mt-1">{form.description}</p>
-                  <div className="mt-4 flex items-center text-sm text-muted-foreground">
-                    <span>Created: {new Date(form.created_at).toLocaleDateString()}</span>
-                    <span className="mx-2">•</span>
-                    <span className={form.active ? 'text-green-500' : 'text-red-500'}>
+      {filteredForms && filteredForms.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-8">
+          {filteredForms.map((form) => (
+            <div 
+              key={form.id} 
+              className="group bg-white text-gray-800 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden"
+            >
+              <div className="p-6 flex flex-col h-full">
+                <div className="flex-1 space-y-3">
+                  
+                  <div className="flex items-center text-xs text-gray-500 gap-3">
+                    <div className="flex items-center">
+                      <Calendar className="w-3.5 h-3.5 mr-1" />
+                      <span>{new Date(form.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className={`flex items-center ${form.active ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {form.active ? <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> : <XCircle className="w-3.5 h-3.5 mr-1" />}
                       {form.active ? 'Active' : 'Inactive'}
-                    </span>
+                    </div>
                   </div>
+                  <h2 className="text-xl font-semibold text-balance line-clamp-2">{form.title}</h2>
+                  
+                  {form.description && (
+                    <p className="text-gray-500 text-sm line-clamp-2">{form.description}</p>
+                  )}
                 </div>
-                <div className="flex gap-2">
-                  <a 
-                    href={`/admin/forms/edit/${form.id}`}
-                    className="px-3 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90"
-                  >
-                    Edit
-                  </a>
-                  <a 
-                    href={`/admin/forms/${form.id}/responses`}
-                    className="px-3 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90"
-                  >
-                    Responses
-                  </a>
+                
+                <div className="grid grid-cols-4 gap-2 mt-5 pt-4 border-t border-gray-100">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <a 
+                          href={`/admin/forms/edit/${form.id}`}
+                          className="flex justify-center p-2 rounded hover:bg-gray-100 transition-colors"
+                        >
+                          <Edit className="h-4 w-4 text-gray-700" />
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>Edit form</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <a 
+                          href={`/admin/forms/${form.id}/responses`}
+                          className="flex justify-center p-2 rounded hover:bg-gray-100 transition-colors"
+                        >
+                          <MessageSquare className="h-4 w-4 text-gray-700" />
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>View responses</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <a 
+                          href={`/admin/dashboards/${form.id}`}
+                          className="flex justify-center p-2 rounded hover:bg-gray-100 transition-colors"
+                        >
+                          <BarChart3 className="h-4 w-4 text-gray-700" />
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>View dashboard</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <a 
+                          href={`/forms/${form.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex justify-center p-2 rounded hover:bg-gray-100 transition-colors"
+                        >
+                          <ExternalLink className="h-4 w-4 text-blue-600" />
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>Open public link</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 bg-muted rounded-lg">
-          <h3 className="text-lg font-medium">No forms created yet</h3>
-          <p className="text-muted-foreground mt-1">Create your first form to get started</p>
+        <div className="flex flex-col items-center justify-center py-12 px-4 mt-8 bg-white rounded-xl border border-gray-200 shadow-sm">
+          {searchTerm ? (
+            <>
+              <Search className="h-12 w-12 text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium mb-1">No forms match your search</h3>
+              <p className="text-gray-500 text-center">Try different keywords or clear your search</p>
+              <button 
+                onClick={() => setSearchTerm('')} 
+                className="mt-4 px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors"
+              >
+                Clear search
+              </button>
+            </>
+          ) : (
+            <>
+              <FileText className="h-12 w-12 text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium mb-1">No forms created yet</h3>
+              <p className="text-gray-500 text-center">Create your first form to get started</p>
+              <button 
+                onClick={handleCreateNewForm} 
+                className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Create Form
+              </button>
+            </>
+          )}
         </div>
       )}
-    </div>
+    </>
   );
 } 

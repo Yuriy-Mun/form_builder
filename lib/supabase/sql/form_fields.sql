@@ -71,7 +71,7 @@ CREATE POLICY admin_form_fields_policy ON form_fields
       JOIN roles r ON u.role_id = r.id
       JOIN roles_permissions rp ON r.id = rp.role_id
       JOIN permissions p ON rp.permission_id = p.id
-      WHERE u.id = auth.uid() 
+      WHERE u.id = (select auth.uid()) 
       AND p.slug = 'admin.access'
       AND r.active = true
     )
@@ -83,7 +83,7 @@ CREATE POLICY user_form_fields_policy ON form_fields
     EXISTS (
       SELECT 1 FROM forms f
       WHERE f.id = form_fields.form_id
-      AND f.created_by = auth.uid()
+      AND f.created_by = (select auth.uid())
     )
   );
 

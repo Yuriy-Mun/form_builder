@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 /**
  * Checks if the current logged-in user exists in the users table,
@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
  */
 export async function syncAuthUserWithDatabase() {
   try {
-    const supabase = createClient();
+    const supabase = getSupabaseClient();
     
     // Get the current auth user
     const { data: authData, error: authError } = await supabase.auth.getUser();

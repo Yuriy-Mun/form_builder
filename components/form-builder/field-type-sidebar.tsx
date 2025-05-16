@@ -1,14 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFormMetaStore } from "@/lib/store/form-meta-store";
 import { createFormField } from "@/lib/store/form-utils";
-import { 
-  Type, 
-  Mail, 
-  AlignLeft, 
-  Hash, 
-  CheckSquare, 
-  ChevronDown, 
-  CircleDot, 
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Type,
+  Mail,
+  AlignLeft,
+  Hash,
+  CheckSquare,
+  ChevronDown,
+  CircleDot,
   Calendar,
   Phone,
   Globe,
@@ -62,11 +63,12 @@ export function FieldTypeSidebar() {
   };
   
   return (
-    <Card className="md:w-56 shrink-0 overflow-y-auto md:max-h-[calc(100vh-240px)]">
-      <CardHeader className="p-3">
+    <Card className="md:w-56 shrink-0 gap-3">
+      <CardHeader className="border-b [.border-b]:pb-3">
         <CardTitle className="text-sm">Add Field</CardTitle>
       </CardHeader>
-      <CardContent className="p-2 space-y-1">
+      <CardContent>
+      <ScrollArea className="h-[calc(100vh-300px)] w-full">
         {availableFieldTypes.map((fieldType) => (
           <button
             key={fieldType.id}
@@ -77,6 +79,7 @@ export function FieldTypeSidebar() {
             <span className="text-sm">{fieldType.name}</span>
           </button>
         ))}
+        </ScrollArea>
       </CardContent>
     </Card>
   );

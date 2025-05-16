@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FormField } from './form-field-editor';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { Star, StarIcon } from 'lucide-react';
+import { StarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface FormPreviewProps {
@@ -442,8 +442,8 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                       </SelectTrigger>
                       <SelectContent>
                         {field.options?.map((option, index) => (
-                          <SelectItem key={index} value={option}>
-                            {option}
+                          <SelectItem key={index} value={option.value}>
+                            {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -483,10 +483,10 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                         </SelectTrigger>
                         <SelectContent>
                           {field.options?.map((option, index) => (
-                            <SelectItem key={index} value={option} disabled={
-                              Array.isArray(fieldValues[field.id]) && fieldValues[field.id].includes(option)
+                            <SelectItem key={index} value={option.value} disabled={
+                              Array.isArray(fieldValues[field.id]) && fieldValues[field.id].includes(option.value)
                             }>
-                              {option}
+                              {option.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -500,17 +500,17 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                         <div key={index} className="flex items-center space-x-2">
                           <div 
                             className="h-4 w-4 rounded-full border border-gray-300 flex items-center justify-center cursor-pointer"
-                            onClick={() => handleFieldChange(field.id, option)}
+                            onClick={() => handleFieldChange(field.id, option.value)}
                           >
-                            {fieldValues[field.id] === option && (
+                            {fieldValues[field.id] === option.value && (
                               <div className="h-2 w-2 rounded-full bg-primary" />
                             )}
                           </div>
                           <Label 
                             className="cursor-pointer"
-                            onClick={() => handleFieldChange(field.id, option)}
+                            onClick={() => handleFieldChange(field.id, option.value)}
                           >
-                            {option}
+                            {option.label}
                           </Label>
                         </div>
                       ))}
@@ -535,9 +535,9 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                                   : [];
                                 
                                 if (checked) {
-                                  handleFieldChange(field.id, [...currentValues, option]);
+                                  handleFieldChange(field.id, [...currentValues, option.value]);
                                 } else {
-                                  handleFieldChange(field.id, currentValues.filter(v => v !== option));
+                                  handleFieldChange(field.id, currentValues.filter(v => v !== option.value));
                                 }
                               }}
                             />
@@ -545,7 +545,7 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                               htmlFor={`${field.id}-${index}`}
                               className="cursor-pointer"
                             >
-                              {option}
+                              {option.label}
                             </Label>
                           </div>
                         );

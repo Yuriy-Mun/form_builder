@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS form_responses (
   form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   completed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  data JSONB NOT NULL, -- Stores the actual response data
+  data JSONB, -- Stores the actual response data
   metadata JSONB, -- Additional metadata (device info, IP, etc.)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

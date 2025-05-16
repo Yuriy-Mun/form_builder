@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
-import type { Permission, Role, RoleFormData } from '@/lib/types'
+import type { Permission, RoleFormData } from '@/lib/types'
 
 // Клиентский компонент для редактирования ролей
 export default function EditRoleClient({ id }: { id: string }) {
@@ -25,6 +25,8 @@ export default function EditRoleClient({ id }: { id: string }) {
     code: '',
     active: true,
   })
+
+  const supabase = getSupabaseClient()
 
   // Fetch role data and permissions
   useEffect(() => {
@@ -65,7 +67,7 @@ export default function EditRoleClient({ id }: { id: string }) {
           
           // Set selected permissions
           if (rolePermissions) {
-            const permissionIds = rolePermissions.map(rp => rp.permission_id)
+            const permissionIds = rolePermissions.map((rp: any) => rp.permission_id)
             setSelectedPermissions(permissionIds)
           }
         } else {

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -23,6 +23,7 @@ export default function AddRolePage() {
     code: '',
     active: true,
   })
+  const supabase = getSupabaseClient()
 
   // Fetch all permissions
   useEffect(() => {

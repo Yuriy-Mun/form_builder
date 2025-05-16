@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { 
-  Settings2, 
-  GripVertical, 
+import {
+  Settings2,
+  GripVertical,
   Trash2,
   Type,
   Mail,
@@ -19,10 +19,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { ConfirmPopover } from "@/components/ui/confirm-popover";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Select, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import { FormField } from "@/lib/store/form-fields-store";
 import { useFormFieldsStore } from "@/lib/store/form-fields-store";

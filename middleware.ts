@@ -31,7 +31,7 @@ export async function middleware(req: NextRequest) {
 
   // Get user - this is safe because we already refreshed the session above
   const { data: { user } } = await supabase.auth.getUser()
-
+  console.log('user', user)
   // Only check admin routes (except login)
   if (req.nextUrl.pathname.startsWith('/admin') && 
       req.nextUrl.pathname !== '/admin/login') {

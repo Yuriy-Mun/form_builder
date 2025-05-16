@@ -1,9 +1,9 @@
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 // Function to test user permissions
 export async function checkUserPermissions() {
   try {
-    const supabase = createClient();
+    const supabase = getSupabaseClient();
     
     // Check if user is authenticated
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -45,7 +45,7 @@ export async function checkUserPermissions() {
       error: testError?.message,
       authenticated: true,
       userId: authData.user.id,
-      permissions: permissions?.map(p => p.permission_code) || [],
+      permissions: permissions?.map((p: any) => p.permission_code) || [],
       canAccessForms: !testError
     };
   } catch (error: any) {
@@ -66,7 +66,7 @@ export async function createForm(formData: {
   active?: boolean;
 }) {
   try {
-    const supabase = createClient();
+    const supabase = getSupabaseClient();
     
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();

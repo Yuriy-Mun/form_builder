@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Plus, Pencil, Trash2 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { getSupabaseClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import {
   Table,
@@ -33,6 +33,8 @@ export default function RolesPage() {
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+
+  const supabase = getSupabaseClient()
   
   useEffect(() => {
     fetchRoles()

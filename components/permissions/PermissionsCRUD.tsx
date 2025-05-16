@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,8 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  DialogTitle
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -23,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Pencil, Trash2, Plus } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import type { Permission, PermissionFormData } from '@/lib/types';
 
 interface PermissionsCRUDProps {
@@ -40,7 +39,7 @@ export default function PermissionsCRUD({ isDialogOpen, setIsDialogOpen }: Permi
   });
   const [editMode, setEditMode] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
-
+  const supabase = getSupabaseClient()
   // Fetch permissions on load
   useEffect(() => {
     fetchPermissions();

@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -18,6 +17,7 @@ import { useFormMetaStore } from "@/lib/store/form-meta-store";
 import { useFormFieldsStore } from "@/lib/store/form-fields-store";
 import { FormField } from "@/lib/store/form-fields-store";
 import { useDebounce } from "@/hooks/use-debounce";
+import { ScrollArea } from "../ui/scroll-area";
 
 export function FormPropertiesPanel() {
   // Локальное состояние для UI
@@ -162,6 +162,19 @@ export function FormPropertiesPanel() {
     });
   };
 
+  // Handle conditional logic changes
+  const handleConditionalLogicChange = (setting: string, value: any) => {
+    if (!selectedField) return;
+    
+    const conditionalLogic = selectedField.conditional_logic || {};
+    updateField(selectedField.id, { 
+      conditional_logic: { 
+        ...conditionalLogic, 
+        [setting]: value 
+      } 
+    });
+  };
+
   // Helper to check if field needs options
   const fieldNeedsOptions = (field: FormField) => {
     return ['select', 'radio', 'checkbox', 'multiselect'].includes(field.type);
@@ -218,8 +231,8 @@ export function FormPropertiesPanel() {
   };
 
   return (
-    <Card className="md:w-72 shrink-0 overflow-y-auto md:max-h-[calc(100vh-240px)]">
-      <CardHeader className="p-3 border-b">
+    <Card className="md:w-80 shrink-0 gap-3">
+      <CardHeader className="border-b [.border-b]:pb-3">
         <CardTitle className="text-sm flex items-center justify-between">
           <span>{selectedField ? 'Field Properties' : 'Form Properties'}</span>
           {isFormSettingsSaving && (
@@ -233,6 +246,7 @@ export function FormPropertiesPanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="p-4 space-y-4">
+      <ScrollArea className="h-[calc(100vh-300px)] w-full">
         {!selectedField ? (
           <>
             <div>
@@ -263,10 +277,11 @@ export function FormPropertiesPanel() {
               onValueChange={setActiveTab}
               className="w-full"
             >
-              <TabsList className="grid grid-cols-3 mb-4">
+              <TabsList className="grid grid-cols-4 mb-4">
                 <TabsTrigger value="basic">Basic</TabsTrigger>
                 <TabsTrigger value="validation">Validation</TabsTrigger>
                 <TabsTrigger value="advanced">Advanced</TabsTrigger>
+                <TabsTrigger value="logic">Logic</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basic" className="space-y-4 pt-2">
@@ -641,7 +656,7 @@ export function FormPropertiesPanel() {
                   </label>
                   <Select
                     value={selectedField?.width || 'full'}
-                    onValueChange={(value) => updateField(selectedField.id, { width: value })}
+                    onValueChange={(value: 'full' | 'half' | 'third') => updateField(selectedField.id, { width: value })}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select field width" />
@@ -654,9 +669,124 @@ export function FormPropertiesPanel() {
                   </Select>
                 </div>
               </TabsContent>
+
+              <TabsContent value="logic" className="space-y-4 pt-2">
+                <h3 className="text-sm font-medium mb-2">Conditional Logic</h3>
+                
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium">
+                    Enable Conditional Logic
+                  </label>
+                  <Switch
+                    checked={selectedField?.conditional_logic?.enabled || false}
+                    onCheckedChange={(value) => handleConditionalLogicChange('enabled', value)}
+                  />
+                </div>
+                
+                {selectedField?.conditional_logic?.enabled && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        Action
+                      </label>
+                      <Select
+                        value={selectedField?.conditional_logic?.action || 'show'}
+                        onValueChange={(value) => handleConditionalLogicChange('action', value)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select action" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="show">Show this field</SelectItem>
+                          <SelectItem value="hide">Hide this field</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        What to do when condition is met
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        Depends On Field
+                      </label>
+                      <Select
+                        value={selectedField?.conditional_logic?.depends_on || ''}
+                        onValueChange={(value) => handleConditionalLogicChange('depends_on', value)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select field" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {useFormFieldsStore.getState().formFields
+                            .filter(f => f.id !== selectedField.id)
+                            .map(field => (
+                              <SelectItem key={field.id} value={field.id}>
+                                {field.label}
+                              </SelectItem>
+                            ))
+                          }
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Field that controls whether this field is shown
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        Condition
+                      </label>
+                      <Select
+                        value={selectedField?.conditional_logic?.condition || 'equals'}
+                        onValueChange={(value) => handleConditionalLogicChange('condition', value)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select condition" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="equals">Equals</SelectItem>
+                          <SelectItem value="not_equals">Not equals</SelectItem>
+                          <SelectItem value="contains">Contains</SelectItem>
+                          <SelectItem value="not_contains">Does not contain</SelectItem>
+                          <SelectItem value="greater_than">Greater than</SelectItem>
+                          <SelectItem value="less_than">Less than</SelectItem>
+                          <SelectItem value="is_empty">Is empty</SelectItem>
+                          <SelectItem value="is_not_empty">Is not empty</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {selectedField?.conditional_logic?.condition !== 'is_empty' && 
+                     selectedField?.conditional_logic?.condition !== 'is_not_empty' && (
+                      <div>
+                        <label className="block text-xs font-medium mb-1">
+                          Value
+                        </label>
+                        <Input
+                          value={selectedField?.conditional_logic?.value || ''}
+                          onChange={(e) => handleConditionalLogicChange('value', e.target.value)}
+                          placeholder="Enter value to compare"
+                          className="w-full"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          The value to compare against
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+                
+                {!selectedField?.conditional_logic?.enabled && (
+                  <p className="text-xs text-muted-foreground text-center py-2">
+                    Enable conditional logic to show or hide this field based on the value of another field.
+                  </p>
+                )}
+              </TabsContent>
             </Tabs>
           </>
         )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
