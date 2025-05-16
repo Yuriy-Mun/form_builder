@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 8887",
     "lint": "next lint",
     "setup-admin": "bun scripts/setup-admin.ts",
     "migrate": "bun scripts/apply-migration.ts"
