@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ImportWordDialog } from '@/components/form-builder/import-word-dialog';
 import { FormField } from '@/components/form-builder/form-field-editor';
 import { createBrowserClient } from '@supabase/ssr';
+import { useQuery } from '@tanstack/react-query';
 import {
   Edit,
   MessageSquare,
@@ -15,7 +16,8 @@ import {
   XCircle,
   Plus,
   FileText,
-  Search
+  Search,
+  Loader2
 } from 'lucide-react';
 import {
   Tooltip,
@@ -23,6 +25,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import Link from 'next/link';
 
 interface Form {
   id: string;
@@ -33,21 +36,33 @@ interface Form {
   created_by?: string; // This maps to auth.users(id), updated from user_id
 }
 
-interface FormsClientProps {
-  forms: Form[];
-}
-
-export default function FormsClient({ forms }: FormsClientProps) {
+export default function FormsClient() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const router = useRouter();
 
   // Initialize Supabase client component-side
-  // Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are in your .env.local
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // Fetch forms using React Query
+  const { data: forms = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['forms'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('forms')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      return data || [];
+    }
+  });
 
   const handleImportSuccess = (fields: FormField[]) => {
     // Store fields in sessionStorage to avoid URL length limitations
@@ -101,6 +116,8 @@ export default function FormsClient({ forms }: FormsClientProps) {
       }
 
       console.log('Form created successfully:', newForm);
+      // Refresh the forms list before navigating
+      await refetch();
       router.push(`/admin/forms/edit/${newForm.id}`);
     } catch (error) {
       console.error('Client-side error creating form:', error);
@@ -158,7 +175,16 @@ export default function FormsClient({ forms }: FormsClientProps) {
         onImportSuccess={handleImportSuccess} 
       />
 
-      {filteredForms && filteredForms.length > 0 ? (
+      {isLoading ? (
+        <div className="flex justify-center items-center h-40">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2 text-gray-600">Loading forms...</span>
+        </div>
+      ) : isError ? (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg mt-8">
+          <p>Error loading forms: {error?.message || 'An unknown error occurred'}</p>
+        </div>
+      ) : filteredForms.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-8">
           {filteredForms.map((form) => (
             <div 
@@ -189,12 +215,12 @@ export default function FormsClient({ forms }: FormsClientProps) {
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <a 
+                        <Link 
                           href={`/admin/forms/edit/${form.id}`}
                           className="flex justify-center p-2 rounded hover:bg-gray-100 transition-colors"
                         >
                           <Edit className="h-4 w-4 text-gray-700" />
-                        </a>
+                        </Link>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
                         <p>Edit form</p>
@@ -203,12 +229,12 @@ export default function FormsClient({ forms }: FormsClientProps) {
                     
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <a 
+                        <Link 
                           href={`/admin/forms/${form.id}/responses`}
                           className="flex justify-center p-2 rounded hover:bg-gray-100 transition-colors"
                         >
                           <MessageSquare className="h-4 w-4 text-gray-700" />
-                        </a>
+                        </Link>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
                         <p>View responses</p>
@@ -217,12 +243,12 @@ export default function FormsClient({ forms }: FormsClientProps) {
                     
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <a 
+                        <Link 
                           href={`/admin/dashboards/${form.id}`}
                           className="flex justify-center p-2 rounded hover:bg-gray-100 transition-colors"
                         >
                           <BarChart3 className="h-4 w-4 text-gray-700" />
-                        </a>
+                        </Link>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
                         <p>View dashboard</p>
@@ -231,14 +257,14 @@ export default function FormsClient({ forms }: FormsClientProps) {
                     
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <a 
+                        <Link 
                           href={`/forms/${form.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex justify-center p-2 rounded hover:bg-gray-100 transition-colors"
                         >
                           <ExternalLink className="h-4 w-4 text-blue-600" />
-                        </a>
+                        </Link>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
                         <p>Open public link</p>

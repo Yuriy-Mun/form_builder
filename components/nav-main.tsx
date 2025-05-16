@@ -53,14 +53,14 @@ export function NavMain({
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton tooltip={item.title} asChild>
-                <Link href={item.url}>
+                <Link href={item.url} prefetch={false}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
                 </Link>
               </SidebarMenuButton>
               {item.actionUrl && (
                 <SidebarMenuAction asChild>
-                  <Link href={item.actionUrl}>
+                  <Link href={item.actionUrl} prefetch={false}>
                     {item.actionIcon && <item.actionIcon aria-hidden="true" />}
                     <span className="sr-only">Add {item.title}</span>
                   </Link>
