@@ -8,19 +8,21 @@ import EditDashboardClient from './edit-dashboard-client';
 
 export const dynamic = 'force-dynamic';
 
-export default function EditDashboardPage({ 
+export default async function EditDashboardPage({ 
   params 
 }: { 
-  params: { id: string } 
+  params: Promise<{ id: string }> 
 }) {
-  if (!params.id) {
+  const { id } = await params;
+  
+  if (!id) {
     return notFound();
   }
   
   return (
     <div className="container py-6 space-y-6">
       <div className="flex items-center gap-2">
-        <Link href={`/admin/dashboards/${params.id}`}>
+        <Link href={`/admin/dashboards/${id}`}>
           <Button variant="ghost" size="icon" className="h-8 w-8">
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -29,7 +31,7 @@ export default function EditDashboardPage({
       </div>
       
       <Suspense fallback={<FormSkeleton />}>
-        <EditDashboardClient dashboardId={params.id} />
+        <EditDashboardClient dashboardId={id} />
       </Suspense>
     </div>
   );

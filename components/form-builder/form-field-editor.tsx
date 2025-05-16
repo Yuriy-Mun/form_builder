@@ -39,8 +39,8 @@ export interface FormField {
   placeholder?: string;
   help_text?: string; // Added help text
   validation_rules?: {
-    min?: number; // Min length for text, min value for number
-    max?: number; // Max length for text, max value for number
+    min?: string; // Min length for text, min value for number
+    max?: string; // Max length for text, max value for number
     pattern?: string; // Regex pattern for validation
     email?: boolean; // Is valid email format
     url?: boolean; // Is valid URL format
@@ -51,8 +51,9 @@ export interface FormField {
   };
   conditional_logic?: {
     dependsOn?: string; // ID of the field this field depends on
-    condition?: 'equals' | 'not_equals' | 'contains' | 'not_contains'; // Type of condition
+    condition?: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'greater_than' | 'less_than'; // Type of condition
     value?: string; // Value to compare against
+    action?: 'show' | 'hide' | 'enable' | 'disable'; // What to do when condition is met
   };
 }
 

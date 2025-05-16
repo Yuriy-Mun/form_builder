@@ -121,11 +121,11 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
     if (['text', 'textarea', 'email', 'url', 'password'].includes(field.type)) {
       const strValue = String(value || '');
       
-      if (rules.min !== undefined && strValue.length < rules.min) {
+      if (rules.min !== undefined && strValue.length < parseInt(rules.min, 10)) {
         return `Must be at least ${rules.min} characters`;
       }
       
-      if (rules.max !== undefined && strValue.length > rules.max) {
+      if (rules.max !== undefined && strValue.length > parseInt(rules.max, 10)) {
         return `Cannot exceed ${rules.max} characters`;
       }
       
@@ -164,11 +164,11 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
         return 'Must be a valid number';
       }
       
-      if (rules.min !== undefined && numValue < rules.min) {
+      if (rules.min !== undefined && numValue < parseInt(rules.min, 10)) {
         return `Must be at least ${rules.min}`;
       }
       
-      if (rules.max !== undefined && numValue > rules.max) {
+      if (rules.max !== undefined && numValue > parseInt(rules.max, 10)) {
         return `Cannot exceed ${rules.max}`;
       }
       

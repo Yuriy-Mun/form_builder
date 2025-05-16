@@ -21,10 +21,10 @@ import {
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
 // Form field schema
-const formSchema = z.object({
+const formSchema = z.strictObject({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  active: z.boolean().default(true),
+  active: z.boolean(),
 });
 
 type FormBuilderProps = {

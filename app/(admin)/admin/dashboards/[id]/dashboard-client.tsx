@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { BarChart, ChevronLeft, Edit, GripVertical, LineChart, PieChart, Plus, Table, Loader2 } from 'lucide-react';
@@ -36,13 +36,35 @@ interface Dashboard {
   } | null;
 }
 
+interface WidgetConfig {
+  fields?: string[];
+  aggregation?: 'count' | 'sum' | 'avg' | 'min' | 'max';
+  groupBy?: string;
+  yField?: string;
+  limit?: number;
+  colors?: string[];
+  useCreatedAtForX?: boolean;
+  useCreatedAtForY?: boolean;
+  dateGrouping?: 'day' | 'week' | 'month' | 'year';
+  xAxis?: {
+    title?: string;
+    gridLines?: boolean;
+  };
+  yAxis?: {
+    title?: string;
+    gridLines?: boolean;
+    min?: number;
+    max?: number;
+  };
+}
+
 interface Widget {
   id: string;
   dashboard_id: string;
   name: string;
   type: 'table' | 'bar_chart' | 'line_chart' | 'pie_chart';
   position: number;
-  config: any;
+  config: WidgetConfig;
   size: 'small' | 'medium' | 'large';
   form_id: string;
 }
@@ -144,7 +166,7 @@ export default function DashboardClient({
         ? Math.max(...widgets.map(w => w.position)) + 1 
         : 0;
       
-      const { data: newWidget, error } = await supabase
+      const { error } = await supabase
         .from('dashboard_widgets')
         .insert({
           dashboard_id: dashboardId,
@@ -206,11 +228,13 @@ export default function DashboardClient({
     }
   }
   
-  async function handleDragEnd(event: any) {
-    if (!event.active || !event.over || event.active.id === event.over.id) return;
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
     
-    const oldIndex = widgets.findIndex(w => w.id === event.active.id);
-    const newIndex = widgets.findIndex(w => w.id === event.over.id);
+    if (!active || !over || active.id === over.id) return;
+    
+    const oldIndex = widgets.findIndex(w => w.id === active.id);
+    const newIndex = widgets.findIndex(w => w.id === over.id);
     
     if (oldIndex === -1 || newIndex === -1) return;
     
@@ -448,7 +472,6 @@ export default function DashboardClient({
 function SortableWidget({ 
   widget,
   children,
-  forms,
   onEdit,
   onDelete 
 }: { 

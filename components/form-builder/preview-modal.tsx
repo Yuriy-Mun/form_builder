@@ -28,8 +28,8 @@ export function PreviewModal({ open, onClose }: PreviewModalProps) {
     return storeFields.map((field): EditorFormField => {
       // Convert validation rules with proper type conversions
       const validationRules = field.validation_rules ? {
-        min: field.validation_rules.min ? Number(field.validation_rules.min) : undefined,
-        max: field.validation_rules.max ? Number(field.validation_rules.max) : undefined,
+        min: field.validation_rules.min,
+        max: field.validation_rules.max,
         pattern: field.validation_rules.pattern,
         email: field.validation_rules.email,
         url: field.validation_rules.url,
