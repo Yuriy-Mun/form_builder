@@ -11,7 +11,8 @@ import {
   ChevronDown,
   CircleDot,
   Calendar,
-  FileText
+  FileText,
+  Zap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSortable } from "@dnd-kit/sortable";
@@ -221,6 +222,11 @@ export function SortableField({ field, index }: SortableFieldProps) {
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {field.type}
             </span>
+            {field.conditional_logic?.enabled && (
+              <div className="flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 text-amber-600" title="Has conditional logic">
+                <Zap className="h-2.5 w-2.5" />
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1">

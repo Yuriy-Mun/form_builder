@@ -781,12 +781,49 @@ export function FormPropertiesPanel() {
                           <label className="block text-xs font-medium mb-1">
                             Value
                           </label>
-                          <Input
-                            value={selectedField?.conditional_logic?.value || ''}
-                            onChange={(e) => handleConditionalLogicChange('value', e.target.value)}
-                            placeholder="Enter value to compare"
-                            className="w-full"
-                          />
+                          {(() => {
+                            // Find the parent field to determine how to show value input
+                            const parentField = useFormFieldsStore.getState().formFields
+                              .find(f => f.id === selectedField?.conditional_logic?.depends_on);
+                            
+                            // If parent field has options (select, radio, checkbox), show dropdown
+                            if (parentField && ['select', 'radio', 'checkbox', 'multiselect'].includes(parentField.type) && parentField.options) {
+                              const options = Array.isArray(parentField.options) ? parentField.options : [];
+                              
+                              return (
+                                <Select
+                                  value={selectedField?.conditional_logic?.value || ''}
+                                  onValueChange={(value) => handleConditionalLogicChange('value', value)}
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select value" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {options.map((option, index) => {
+                                      const optionValue = typeof option === 'string' ? option : option.value;
+                                      const optionLabel = typeof option === 'string' ? option : option.label;
+                                      return (
+                                        <SelectItem key={index} value={optionValue}>
+                                          {optionLabel}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              );
+                            }
+                            
+                            // For other field types, show regular input
+                            return (
+                              <Input
+                                value={selectedField?.conditional_logic?.value || ''}
+                                onChange={(e) => handleConditionalLogicChange('value', e.target.value)}
+                                placeholder="Enter value to compare"
+                                className="w-full"
+                                type={parentField?.type === 'number' ? 'number' : 'text'}
+                              />
+                            );
+                          })()}
                           <p className="text-xs text-muted-foreground mt-1">
                             The value to compare against
                           </p>
@@ -799,6 +836,39 @@ export function FormPropertiesPanel() {
                     <p className="text-xs text-muted-foreground text-center py-2">
                       Enable conditional logic to show or hide this field based on the value of another field.
                     </p>
+                  )}
+                  
+                  {selectedField?.conditional_logic?.enabled && (
+                    <div className="mt-4 p-3 bg-slate-50 rounded-lg border">
+                      <h4 className="text-xs font-medium text-slate-700 mb-2">Preview</h4>
+                      <p className="text-xs text-slate-600">
+                        {(() => {
+                          const logic = selectedField.conditional_logic;
+                          const parentField = useFormFieldsStore.getState().formFields
+                            .find(f => f.id === logic.depends_on);
+                          const parentName = parentField?.label || 'Unknown field';
+                          
+                          const actionText = logic.action === 'show' ? 'Show' : 'Hide';
+                          const conditionMap: Record<string, string> = {
+                            'equals': 'equals',
+                            'not_equals': 'does not equal',
+                            'contains': 'contains',
+                            'not_contains': 'does not contain',
+                            'greater_than': 'is greater than',
+                            'less_than': 'is less than',
+                            'is_empty': 'is empty',
+                            'is_not_empty': 'is not empty'
+                          };
+                          const conditionText = conditionMap[logic.condition || ''] || logic.condition;
+                          
+                          if (logic.condition === 'is_empty' || logic.condition === 'is_not_empty') {
+                            return `${actionText} this field when "${parentName}" ${conditionText}`;
+                          }
+                          
+                          return `${actionText} this field when "${parentName}" ${conditionText} "${logic.value || ''}"`;
+                        })()}
+                      </p>
+                    </div>
                   )}
                 </AccordionContent>
               </AccordionItem>

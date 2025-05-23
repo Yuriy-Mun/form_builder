@@ -180,7 +180,14 @@ export function ThemedFormRenderer({ form, fields }: ThemedFormRendererProps) {
     // Set initial field visibility
     const initialVisibility: Record<string, boolean> = {};
     fields.forEach(field => {
-      initialVisibility[field.id] = !field.conditional_logic || !field.conditional_logic.dependsOn;
+      // Field is visible by default unless it has conditional logic that should hide it initially
+      if (field.conditional_logic && field.conditional_logic.enabled && field.conditional_logic.depends_on) {
+        // For conditional fields, start with hidden state and let the watch effect handle visibility
+        initialVisibility[field.id] = false;
+      } else {
+        // Non-conditional fields are always visible
+        initialVisibility[field.id] = true;
+      }
     });
     setVisibleFields(initialVisibility);
     
@@ -203,38 +210,56 @@ export function ThemedFormRenderer({ form, fields }: ThemedFormRendererProps) {
       
       // Check each conditional field
       fields.forEach(field => {
-        if (field.conditional_logic && field.conditional_logic.dependsOn) {
-          const { dependsOn, condition, value } = field.conditional_logic;
-          const parentValue = values[dependsOn];
+        if (field.conditional_logic && field.conditional_logic.enabled && field.conditional_logic.depends_on) {
+          const { depends_on, condition, value, action } = field.conditional_logic;
+          const parentValue = values[depends_on];
           
-          // Skip if parent field has no value
-          if (parentValue === undefined) return;
-          
-          let isVisible = false;
+          let conditionMet = false;
           
           switch (condition) {
             case 'equals':
-              isVisible = parentValue === value;
+              conditionMet = parentValue === value;
               break;
             case 'not_equals':
-              isVisible = parentValue !== value;
+              conditionMet = parentValue !== value;
               break;
             case 'contains':
-              isVisible = Array.isArray(parentValue) 
+              conditionMet = Array.isArray(parentValue) 
                 ? parentValue.includes(value)
-                : String(parentValue).includes(value);
+                : String(parentValue || '').includes(value || '');
               break;
-            case 'not_empty':
-              isVisible = parentValue !== '' && parentValue !== null && parentValue !== undefined;
+            case 'not_contains':
+              conditionMet = Array.isArray(parentValue) 
+                ? !parentValue.includes(value)
+                : !String(parentValue || '').includes(value || '');
               break;
-            case 'empty':
-              isVisible = parentValue === '' || parentValue === null || parentValue === undefined;
+            case 'greater_than':
+              conditionMet = Number(parentValue) > Number(value);
+              break;
+            case 'less_than':
+              conditionMet = Number(parentValue) < Number(value);
+              break;
+            case 'is_empty':
+              conditionMet = parentValue === '' || parentValue === null || parentValue === undefined || 
+                           (Array.isArray(parentValue) && parentValue.length === 0);
+              break;
+            case 'is_not_empty':
+              conditionMet = parentValue !== '' && parentValue !== null && parentValue !== undefined && 
+                           (!Array.isArray(parentValue) || parentValue.length > 0);
               break;
             default:
-              isVisible = true;
+              conditionMet = false;
           }
           
-          newVisibility[field.id] = isVisible;
+          // Apply action based on condition result
+          if (action === 'show') {
+            newVisibility[field.id] = conditionMet;
+          } else if (action === 'hide') {
+            newVisibility[field.id] = !conditionMet;
+          }
+        } else {
+          // Field without conditional logic is always visible
+          newVisibility[field.id] = true;
         }
       });
       
@@ -897,15 +922,15 @@ export function ThemedFormRenderer({ form, fields }: ThemedFormRendererProps) {
           
           <CardContent className="pb-6 px-6">
             <form onSubmit={form$.handleSubmit(onSubmit)} className="space-y-6">
-              <AnimatePresence mode="wait">
-                <div className={cn(
-                  "space-y-5",
-                  themeSettings.layout === 'two-column' && "grid grid-cols-1 md:grid-cols-2 gap-6 space-y-0",
-                  themeSettings.layout === 'compact' && "space-y-4"
-                )}>
+              <div className={cn(
+                "space-y-5",
+                themeSettings.layout === 'two-column' && "grid grid-cols-1 md:grid-cols-2 gap-6 space-y-0",
+                themeSettings.layout === 'compact' && "space-y-4"
+              )}>
+                <AnimatePresence>
                   {fields.map(renderFormField)}
-                </div>
-              </AnimatePresence>
+                </AnimatePresence>
+              </div>
               
               {fields.length > 0 && (
                 <>
