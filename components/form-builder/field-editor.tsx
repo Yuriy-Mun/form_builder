@@ -47,9 +47,8 @@ import { X } from 'lucide-react';
 
 // Define the form field types
 type FieldType = 'text' | 'textarea' | 'checkbox' | 'radio' | 'select' | 'date' | 
-  'email' | 'phone' | 'url' | 'password' | 'number' | 'time' | 'datetime' | 
-  'file' | 'range' | 'color' | 'rating' | 'toggle' | 'rich-text' | 'signature' | 
-  'captcha' | 'multiselect';
+  'email' | 'phone' | 'url' | 'number' | 'time' | 'datetime' | 
+  'file' | 'range' | 'rating' | 'toggle' | 'multiselect';
 
 // Field-specific settings interfaces
 interface NumberSettings {
@@ -90,28 +89,9 @@ interface ToggleSettings {
   color_off?: string;
 }
 
-interface SignatureSettings {
-  pen_color?: string;
-  background_color?: string;
-  clear_button?: boolean;
-  signature_type?: 'draw' | 'type';
-}
+// Removed RichTextSettings interface - no longer needed
 
-interface RichTextSettings {
-  toolbar?: string[];
-  min_height?: number;
-  max_height?: number;
-  enable_html?: boolean;
-  allowed_tags?: string[];
-  placeholder?: string;
-}
-
-interface CaptchaSettings {
-  type?: 'text' | 'math' | 'image';
-  difficulty?: 'easy' | 'medium' | 'hard';
-  case_sensitive?: boolean;
-  refresh_button?: boolean;
-}
+// Removed CaptchaSettings interface - no longer needed
 
 interface AppearanceSettings {
   label_position?: 'top' | 'left' | 'right' | 'hidden';
@@ -684,7 +664,7 @@ export function FieldEditor({ field, isOpen, onClose, onSave, allFields = [] }: 
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {(field?.type === 'text' || field?.type === 'textarea' || field?.type === 'email' ||
-                      field?.type === 'url' || field?.type === 'password') && (
+                      field?.type === 'url') && (
                         <>
                           <div className="grid grid-cols-2 gap-4">
                             <FormField

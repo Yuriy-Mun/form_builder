@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImportWordDialog } from '@/components/form-builder/import-word-dialog';
 import { FormField } from '@/components/form-builder/form-field-editor';
 import { createBrowserClient } from '@supabase/ssr';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   Edit,
   MessageSquare,
@@ -17,7 +18,11 @@ import {
   Plus,
   FileText,
   Search,
-  Loader2
+  Loader2,
+  Share2,
+  Copy,
+  Mail,
+  MessageCircle
 } from 'lucide-react';
 import {
   Tooltip,
@@ -25,6 +30,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTrigger,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+} from "@/components/ui/drawer";
 import Link from 'next/link';
 
 interface Form {
@@ -39,6 +57,9 @@ interface Form {
 export default function FormsClient() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [openSharePopover, setOpenSharePopover] = useState<string | null>(null);
+  const [openShareDrawer, setOpenShareDrawer] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const router = useRouter();
 
   // Initialize Supabase client component-side
@@ -63,6 +84,18 @@ export default function FormsClient() {
       return data || [];
     }
   });
+
+  // Определение мобильного устройства
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
 
   const handleImportSuccess = (fields: FormField[]) => {
     // Store fields in sessionStorage to avoid URL length limitations
@@ -126,10 +159,188 @@ export default function FormsClient() {
     }
   };
 
+  const handleCopyLink = async (formId: string) => {
+    const publicUrl = `${window.location.origin}/forms/${formId}`;
+    
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success('Ссылка скопирована в буфер обмена!', {
+        description: 'Теперь вы можете поделиться этой формой'
+      });
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+      // Fallback for older browsers
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = publicUrl;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        
+        toast.success('Ссылка скопирована в буфер обмена!', {
+          description: 'Теперь вы можете поделиться этой формой'
+        });
+      } catch (fallbackErr) {
+        toast.error('Не удалось скопировать ссылку', {
+          description: 'Попробуйте скопировать ссылку вручную'
+        });
+      }
+    }
+  };
+
+  const handleOpenPublicLink = (formId: string) => {
+    const publicUrl = `${window.location.origin}/forms/${formId}`;
+    window.open(publicUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleShareViaEmail = (formId: string, formTitle: string) => {
+    const publicUrl = `${window.location.origin}/forms/${formId}`;
+    const subject = encodeURIComponent(`Заполните форму: ${formTitle}`);
+    const body = encodeURIComponent(`Пожалуйста, заполните эту форму: ${publicUrl}`);
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
+  };
+
+  const handleShareViaTelegram = (formId: string, formTitle: string) => {
+    const publicUrl = `${window.location.origin}/forms/${formId}`;
+    const text = encodeURIComponent(`Заполните форму "${formTitle}": ${publicUrl}`);
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(publicUrl)}&text=${text}`, '_blank');
+  };
+
+  const handleShareViaWhatsApp = (formId: string, formTitle: string) => {
+    const publicUrl = `${window.location.origin}/forms/${formId}`;
+    const text = encodeURIComponent(`Заполните форму "${formTitle}": ${publicUrl}`);
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
   // Filter forms based on search term
   const filteredForms = forms.filter(form => 
     form.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (form.description && form.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  // Компонент содержимого для поделиться
+  const ShareContent = ({ form, onClose }: { form: Form; onClose: () => void }) => (
+    <div className="relative">
+      {/* Декоративный фон */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 via-purple-400/10 to-pink-400/10"></div>
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-400/20 to-transparent rounded-full -translate-y-16 translate-x-16"></div>
+      <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-purple-400/20 to-transparent rounded-full translate-y-12 -translate-x-12"></div>
+      
+      <div className="relative p-6">
+        {/* Заголовок */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl mb-3 shadow-lg">
+            <Share2 className="h-6 w-6 text-white" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-800 mb-1">Поделиться формой</h3>
+          <p className="text-sm text-gray-500 truncate max-w-64">"{form.title}"</p>
+        </div>
+        
+        {/* Сетка действий */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          {/* Копировать ссылку */}
+          <button
+            onClick={() => {
+              handleCopyLink(form.id);
+              onClose();
+            }}
+            className="group relative p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 hover:bg-white hover:scale-105 transition-all duration-300 shadow-sm hover:shadow-lg"
+          >
+            <div className="flex flex-col items-center text-center space-y-2">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Copy className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-gray-800">Копировать</div>
+                <div className="text-xs text-gray-500">Ссылку</div>
+              </div>
+            </div>
+          </button>
+          
+          {/* Открыть форму */}
+          <button
+            onClick={() => {
+              handleOpenPublicLink(form.id);
+              onClose();
+            }}
+            className="group relative p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 hover:bg-white hover:scale-105 transition-all duration-300 shadow-sm hover:shadow-lg"
+          >
+            <div className="flex flex-col items-center text-center space-y-2">
+              <div className="w-10 h-10 bg-gradient-to-r from-gray-500 to-gray-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <ExternalLink className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-gray-800">Открыть</div>
+                <div className="text-xs text-gray-500">Форму</div>
+              </div>
+            </div>
+          </button>
+          
+          {/* Email */}
+          <button
+            onClick={() => {
+              handleShareViaEmail(form.id, form.title);
+              onClose();
+            }}
+            className="group relative p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 hover:bg-white hover:scale-105 transition-all duration-300 shadow-sm hover:shadow-lg"
+          >
+            <div className="flex flex-col items-center text-center space-y-2">
+              <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Mail className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-gray-800">Email</div>
+                <div className="text-xs text-gray-500">Почта</div>
+              </div>
+            </div>
+          </button>
+          
+          {/* Telegram */}
+          <button
+            onClick={() => {
+              handleShareViaTelegram(form.id, form.title);
+              onClose();
+            }}
+            className="group relative p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 hover:bg-white hover:scale-105 transition-all duration-300 shadow-sm hover:shadow-lg"
+          >
+            <div className="flex flex-col items-center text-center space-y-2">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-blue-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <MessageCircle className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-gray-800">Telegram</div>
+                <div className="text-xs text-gray-500">Мессенджер</div>
+              </div>
+            </div>
+          </button>
+        </div>
+        
+        {/* WhatsApp - отдельно, на всю ширину */}
+        <button
+          onClick={() => {
+            handleShareViaWhatsApp(form.id, form.title);
+            onClose();
+          }}
+          className="group w-full p-4 bg-gradient-to-r from-green-500 to-green-600 rounded-2xl hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+        >
+          <div className="flex items-center justify-center space-x-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <MessageCircle className="h-5 w-5 text-white" />
+            </div>
+            <div className="text-white">
+              <div className="text-sm font-semibold">Поделиться в WhatsApp</div>
+              <div className="text-xs opacity-90">Быстрая отправка</div>
+            </div>
+          </div>
+        </button>
+        
+        {/* Декоративные элементы */}
+        <div className="absolute top-4 right-4 w-2 h-2 bg-blue-400 rounded-full opacity-60"></div>
+        <div className="absolute top-8 right-8 w-1 h-1 bg-purple-400 rounded-full opacity-40"></div>
+        <div className="absolute bottom-4 left-4 w-1.5 h-1.5 bg-pink-400 rounded-full opacity-50"></div>
+      </div>
+    </div>
   );
 
   return (
@@ -257,17 +468,64 @@ export default function FormsClient() {
                     
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Link 
-                          href={`/forms/${form.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex justify-center p-2 rounded hover:bg-gray-100 transition-colors"
-                        >
-                          <ExternalLink className="h-4 w-4 text-blue-600" />
-                        </Link>
+                        {isMobile ? (
+                          <Drawer 
+                            open={openShareDrawer === form.id} 
+                            onOpenChange={(open) => setOpenShareDrawer(open ? form.id : null)}
+                          >
+                            <DrawerTrigger asChild>
+                              <button className={`
+                                relative flex justify-center p-3 rounded-2xl transition-all duration-300 transform hover:scale-110 group overflow-hidden
+                                ${openShareDrawer === form.id 
+                                  ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 shadow-lg shadow-blue-500/30' 
+                                  : 'bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:shadow-lg hover:shadow-blue-400/25'
+                                }
+                              `}>
+                                {/* Декоративные элементы */}
+                                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                <div className="absolute top-1 right-1 w-1 h-1 bg-white/60 rounded-full"></div>
+                                <div className="absolute bottom-1 left-1 w-0.5 h-0.5 bg-white/40 rounded-full"></div>
+                                
+                                <Share2 className="h-4 w-4 text-white relative z-10 group-hover:rotate-12 transition-transform" />
+                              </button>
+                            </DrawerTrigger>
+                            <DrawerContent className="bg-gradient-to-br from-slate-50 to-blue-50">
+                              <DrawerHeader className="text-center pb-2">
+                                <DrawerTitle className="sr-only">Поделиться формой</DrawerTitle>
+                                <DrawerDescription className="sr-only">Выберите способ поделиться формой</DrawerDescription>
+                              </DrawerHeader>
+                              <ShareContent form={form} onClose={() => setOpenShareDrawer(null)} />
+                            </DrawerContent>
+                          </Drawer>
+                        ) : (
+                          <Popover 
+                            open={openSharePopover === form.id} 
+                            onOpenChange={(open) => setOpenSharePopover(open ? form.id : null)}
+                          >
+                            <PopoverTrigger asChild>
+                              <button className={`
+                                relative flex justify-center p-3 rounded-2xl transition-all duration-300 transform hover:scale-110 group overflow-hidden
+                                ${openSharePopover === form.id 
+                                  ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 shadow-lg shadow-blue-500/30' 
+                                  : 'bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:shadow-lg hover:shadow-blue-400/25'
+                                }
+                              `}>
+                                {/* Декоративные элементы */}
+                                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                <div className="absolute top-1 right-1 w-1 h-1 bg-white/60 rounded-full"></div>
+                                <div className="absolute bottom-1 left-1 w-0.5 h-0.5 bg-white/40 rounded-full"></div>
+                                
+                                <Share2 className="h-4 w-4 text-white relative z-10 group-hover:rotate-12 transition-transform" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-0 border-0 shadow-2xl bg-gradient-to-br from-slate-50 to-blue-50 rounded-3xl overflow-hidden">
+                              <ShareContent form={form} onClose={() => setOpenSharePopover(null)} />
+                            </PopoverContent>
+                          </Popover>
+                        )}
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
-                        <p>Open public link</p>
+                        <p>Поделиться</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

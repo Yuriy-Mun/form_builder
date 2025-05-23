@@ -26,9 +26,8 @@ import { FormPreview } from './form-preview';
 
 // Define the form field types
 export type FieldType = 'text' | 'textarea' | 'checkbox' | 'radio' | 'select' | 'date' | 
-  'email' | 'phone' | 'url' | 'password' | 'number' | 'time' | 'datetime' | 
-  'file' | 'range' | 'color' | 'rating' | 'toggle' | 'rich-text' | 'signature' | 
-  'captcha' | 'multiselect';
+  'email' | 'phone' | 'url' | 'number' | 'time' | 'datetime' | 
+  'file' | 'range' | 'rating' | 'toggle' | 'multiselect';
 
 export interface FormField {
   id: string;
@@ -173,9 +172,8 @@ export function FormFieldEditor({
   const validatedInitialFields = useMemo(() => {
     const validTypes: FieldType[] = [
       'text', 'textarea', 'checkbox', 'radio', 'select', 'date',
-      'email', 'phone', 'url', 'password', 'number', 'time', 'datetime',
-      'file', 'range', 'color', 'rating', 'toggle', 'rich-text', 'signature',
-      'captcha', 'multiselect'
+      'email', 'phone', 'url', 'number', 'time', 'datetime',
+      'file', 'range', 'rating', 'toggle', 'multiselect'
     ];
     
     return initialFields.map(field => {

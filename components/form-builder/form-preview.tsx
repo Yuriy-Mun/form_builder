@@ -117,8 +117,8 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
     
     const rules = field.validation_rules;
     
-    // Handle text, textarea, email, url, password
-    if (['text', 'textarea', 'email', 'url', 'password'].includes(field.type)) {
+    // Handle text, textarea, email, url
+    if (['text', 'textarea', 'email', 'url'].includes(field.type)) {
       const strValue = String(value || '');
       
       if (rules.min !== undefined && strValue.length < parseInt(rules.min, 10)) {
@@ -365,22 +365,7 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                     </>
                   )}
 
-                  {field.type === 'password' && (
-                    <>
-                      <Input
-                        id={field.id}
-                        type="password"
-                        placeholder={field.placeholder || "Enter password"}
-                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                        value={fieldValues[field.id] || ''}
-                        className={validationErrors[field.id] ? "border-red-500" : ""}
-                      />
-                      <FieldHelpText field={field} />
-                      {validationErrors[field.id] && (
-                        <div className="text-red-500 text-sm mt-1">{validationErrors[field.id]}</div>
-                      )}
-                    </>
-                  )}
+                  {/* Removed password field type */}
 
                   {field.type === 'number' && (
                     <>
@@ -415,22 +400,7 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                     </>
                   )}
 
-                  {field.type === 'rich-text' && (
-                    <div className="border rounded-md p-3">
-                      <div className="flex mb-2 gap-2 border-b pb-2">
-                        <Button type="button" size="sm" variant="outline">B</Button>
-                        <Button type="button" size="sm" variant="outline">I</Button>
-                        <Button type="button" size="sm" variant="outline">U</Button>
-                      </div>
-                      <Textarea
-                        id={field.id}
-                        placeholder={field.placeholder || "Enter rich text..."}
-                        className="min-h-[150px] border-none focus-visible:ring-0 p-0"
-                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                        value={fieldValues[field.id] || ''}
-                      />
-                    </div>
-                  )}
+                  {/* Removed rich-text field type */}
                   
                   {field.type === 'select' && (
                     <Select 
@@ -614,20 +584,7 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                     </div>
                   )}
 
-                  {field.type === 'color' && (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id={field.id}
-                        type="color"
-                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                        value={fieldValues[field.id] || '#000000'}
-                        className="w-12 h-10 p-1"
-                      />
-                      <span className="text-sm">
-                        {fieldValues[field.id] || '#000000'}
-                      </span>
-                    </div>
-                  )}
+                  {/* Removed color field type */}
 
                   {field.type === 'rating' && (
                     <div className="flex gap-1">
@@ -667,93 +624,9 @@ export function FormPreview({ formName, formDescription, fields, onClose }: Form
                     </div>
                   )}
 
-                  {field.type === 'signature' && (
-                    <div className="border rounded-md p-2 min-h-[100px] bg-gray-50 flex flex-col items-center justify-center">
-                      {fieldValues[field.id] ? (
-                        <div className="w-full">
-                          <div className="border-b-2 border-black p-2 text-center italic">
-                            {fieldValues[field.id]}
-                          </div>
-                          <div className="text-center">
-                            <button 
-                              type="button" 
-                              className="text-xs mt-2 text-gray-500 hover:text-gray-700"
-                              onClick={() => handleFieldChange(field.id, '')}
-                            >
-                              Clear signature
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-center">
-                          <p className="text-gray-500 mb-2">Click below to sign</p>
-                          <Button 
-                            type="button" 
-                            variant="outline"
-                            onClick={() => {
-                              const name = prompt("Enter your name for signature:");
-                              if (name) handleFieldChange(field.id, name);
-                            }}
-                          >
-                            Sign here
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Removed signature field type */}
 
-                  {field.type === 'captcha' && (
-                    <div className="border rounded-md p-3">
-                      <div className="flex flex-col gap-2">
-                        <div className="bg-gray-100 p-3 text-center">
-                          <p className="text-gray-800 font-mono text-lg tracking-widest">
-                            {fieldValues[field.id]?.code || 'CAPTCHA12'}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Enter the code above"
-                            onChange={(e) => {
-                              const userInput = e.target.value;
-                              const code = fieldValues[field.id]?.code || 'CAPTCHA12';
-                              const isValid = userInput === code;
-                              
-                              handleFieldChange(field.id, {
-                                code,
-                                input: userInput,
-                                isValid
-                              });
-                            }}
-                            value={fieldValues[field.id]?.input || ''}
-                          />
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            onClick={() => {
-                              // Generate a new random code
-                              const newCode = 'CAPTCHA' + Math.floor(Math.random() * 100);
-                              handleFieldChange(field.id, { 
-                                code: newCode, 
-                                input: '',
-                                isValid: false
-                              });
-                            }}
-                            className="shrink-0"
-                          >
-                            Refresh
-                          </Button>
-                        </div>
-                        {fieldValues[field.id]?.input && (
-                          <div className={cn(
-                            "text-sm",
-                            fieldValues[field.id]?.isValid ? "text-green-600" : "text-red-600"
-                          )}>
-                            {fieldValues[field.id]?.isValid ? 'Verified ✓' : 'Invalid code'}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  {/* Removed captcha field type */}
                 </div>
               );
             })

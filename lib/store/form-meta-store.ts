@@ -8,6 +8,11 @@ export interface Form {
   created_by?: string;
   active?: boolean;
   status?: 'draft' | 'published' | 'locked';
+  theme_settings?: {
+    primaryColor: string;
+    formTheme: string;
+    layout: string;
+  };
 }
 
 interface FormMetaState {
@@ -16,6 +21,11 @@ interface FormMetaState {
   formTitle: string;
   formDescription: string;
   formStatus: 'draft' | 'published' | 'locked';
+  themeSettings: {
+    primaryColor: string;
+    formTheme: string;
+    layout: string;
+  };
   
   // Loading states
   loading: boolean;
@@ -27,6 +37,7 @@ interface FormMetaState {
   updateFormTitle: (title: string) => Promise<void>;
   updateFormDescription: (description: string) => Promise<void>;
   updateFormStatus: (status: 'draft' | 'published' | 'locked') => Promise<void>;
+  updateThemeSettings: (settings: Partial<{ primaryColor: string; formTheme: string; layout: string }>) => Promise<void>;
   setForm: (form: Form | null) => void;
 }
 
@@ -36,6 +47,11 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
   formTitle: '',
   formDescription: '',
   formStatus: 'draft',
+  themeSettings: {
+    primaryColor: '#4f46e5',
+    formTheme: 'default',
+    layout: 'default',
+  },
   loading: true,
   error: null,
   isSaving: false,
@@ -79,6 +95,11 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
         formTitle: formData.title,
         formDescription: formData.description || '',
         formStatus: formData.status || 'draft',
+        themeSettings: formData.theme_settings || {
+          primaryColor: '#4f46e5',
+          formTheme: 'default',
+          layout: 'default',
+        },
       });
     } catch (err) {
       console.error(err);
@@ -97,6 +118,11 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
           formTitle: newForm.title,
           formDescription: '',
           formStatus: 'draft',
+          themeSettings: {
+            primaryColor: '#4f46e5',
+            formTheme: 'default',
+            layout: 'default',
+          },
         });
         console.log('Form not found, initializing as new untitled form.');
       }
@@ -110,7 +136,12 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
       form,
       formTitle: form?.title || '',
       formDescription: form?.description || '',
-      formStatus: (form?.status as 'draft' | 'published' | 'locked') || 'draft'
+      formStatus: (form?.status as 'draft' | 'published' | 'locked') || 'draft',
+      themeSettings: form?.theme_settings || {
+        primaryColor: '#4f46e5',
+        formTheme: 'default',
+        layout: 'default',
+      },
     });
   },
   
@@ -193,6 +224,45 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
       set({ form: { ...form, status }, formStatus: status });
     } catch (err) {
       console.error('Error updating status:', err);
+    } finally {
+      set({ isSaving: false });
+    }
+  },
+  
+  // Update theme settings
+  updateThemeSettings: async (settings: Partial<{ primaryColor: string; formTheme: string; layout: string }>) => {
+    const { form, themeSettings } = get();
+    const supabase = getSupabaseClient();
+    
+    if (!form) return;
+    
+    set({ isSaving: true });
+    
+    try {
+      const currentThemeSettings = form.theme_settings || {
+        primaryColor: '#4f46e5',
+        formTheme: 'default',
+        layout: 'default'
+      };
+      
+      const updatedThemeSettings = { ...currentThemeSettings, ...settings };
+      
+      const { error } = await supabase
+        .from('forms')
+        .update({ theme_settings: updatedThemeSettings })
+        .eq('id', form.id);
+        
+      if (error) {
+        console.error('Error updating theme settings:', error);
+        return;
+      }
+      
+      set({
+        form: { ...form, theme_settings: updatedThemeSettings },
+        themeSettings: updatedThemeSettings,
+      });
+    } catch (err) {
+      console.error('Error updating theme settings:', err);
     } finally {
       set({ isSaving: false });
     }

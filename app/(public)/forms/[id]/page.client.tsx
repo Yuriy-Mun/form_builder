@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ModernFormRenderer } from "@/components/form-builder/modern-form-renderer";
+import { ThemedFormRenderer } from "@/components/form-builder/themed-form-renderer";
 import { FormSkeleton } from "@/components/form-builder/form-skeleton";
 import { FormError } from "@/components/form-builder/form-error";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -167,5 +167,5 @@ export default function PublicFormPageClient({
     );
   }
   
-  return <ModernFormRenderer form={form} fields={fields} />;
+  return <ThemedFormRenderer form={form} fields={fields} />;
 } 

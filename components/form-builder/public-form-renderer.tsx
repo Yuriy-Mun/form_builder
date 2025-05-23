@@ -271,23 +271,107 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
       // Получаем пользователя, если авторизован
       const { data: { user } } = await supabase.auth.getUser();
       
-      // Подготовка данных для отправки
-      const submissionData = {
-        form_id: form.id,
-        user_id: user?.id || null,
-        data: sanitizedValues,
-        metadata: {
-          browser: navigator.userAgent,
-          submitted_at: new Date().toISOString(),
-        }
-      };
-      
-      // Отправляем ответ
-      const { error } = await supabase
+      // First, create the main form response record
+      const { data: responseData, error: responseError } = await supabase
         .from('form_responses')
-        .insert(submissionData);
+        .insert({
+          form_id: form.id,
+          user_id: user?.id || null,
+          completed_at: new Date().toISOString(),
+          data: sanitizedValues, // Store as JSONB for backup/reference
+          metadata: {
+            user_agent: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+            form_version: form.version || '1.0'
+          }
+        })
+        .select('id')
+        .single();
       
-      if (error) throw new Error(error.message);
+      if (responseError) {
+        throw new Error(responseError.message);
+      }
+      
+      const responseId = responseData.id;
+      
+      // Then, save each field value individually in form_response_values
+      const responseValues = [];
+      
+      for (const [fieldId, value] of Object.entries(sanitizedValues)) {
+        // Skip empty values
+        if (value === '' || value === null || value === undefined) continue;
+        
+        // Find the field to get its type
+        const field = fields.find(f => f.id === fieldId);
+        if (!field) continue;
+        
+        let processedValue = value;
+        let numericValue = null;
+        let booleanValue = null;
+        
+        // Process value based on field type
+        switch (field.type) {
+          case 'number':
+            numericValue = typeof value === 'number' ? value : parseFloat(value);
+            processedValue = String(value);
+            break;
+          case 'switch':
+          case 'toggle':
+            booleanValue = Boolean(value);
+            processedValue = String(value);
+            break;
+          case 'checkbox':
+            // For checkboxes, create separate entries for each selected option
+            if (Array.isArray(value) && value.length > 0) {
+              for (const option of value) {
+                responseValues.push({
+                  response_id: responseId,
+                  field_id: fieldId,
+                  value: option,
+                  numeric_value: null,
+                  boolean_value: null
+                });
+              }
+              continue; // Skip the main entry for checkbox arrays
+            }
+            break;
+          case 'radio':
+          case 'select':
+          case 'text':
+          case 'email':
+          case 'url':
+          case 'tel':
+          case 'textarea':
+          case 'date':
+          case 'time':
+          case 'file':
+          default:
+            processedValue = String(value);
+            break;
+        }
+        
+        // Add the main entry (skip if it was a checkbox array)
+        if (field.type !== 'checkbox' || !Array.isArray(value)) {
+          responseValues.push({
+            response_id: responseId,
+            field_id: fieldId,
+            value: processedValue,
+            numeric_value: numericValue,
+            boolean_value: booleanValue
+          });
+        }
+      }
+      
+      // Insert all response values
+      if (responseValues.length > 0) {
+        const { error: valuesError } = await supabase
+          .from('form_response_values')
+          .insert(responseValues);
+        
+        if (valuesError) {
+          throw new Error(valuesError.message);
+        }
+      }
       
       toast.success('Форма успешно отправлена');
       setSubmitted(true);
@@ -334,6 +418,8 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
       return null;
     }
     
+    const isRequired = field.required;
+    
     switch (field.type) {
       case 'text':
         return (
@@ -343,7 +429,10 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
             name={field.id}
             render={({ field: formField }) => (
               <FormItem>
-                <FormLabel>{field.label}</FormLabel>
+                <FormLabel className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {field.label}
+                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                </FormLabel>
                 <FormControl>
                   <Input 
                     placeholder={field.placeholder}
@@ -352,9 +441,14 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
                     onBlur={formField.onBlur}
                     name={formField.name}
                     ref={formField.ref}
+                    className="h-10"
                   />
                 </FormControl>
-                {field.help_text && <FormDescription>{field.help_text}</FormDescription>}
+                {field.help_text && (
+                  <FormDescription className="text-xs text-slate-600 dark:text-slate-400">
+                    {field.help_text}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -369,7 +463,10 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
             name={field.id}
             render={({ field: formField }) => (
               <FormItem>
-                <FormLabel>{field.label}</FormLabel>
+                <FormLabel className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {field.label}
+                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                </FormLabel>
                 <FormControl>
                   <Textarea 
                     placeholder={field.placeholder}
@@ -378,9 +475,14 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
                     onBlur={formField.onBlur}
                     name={formField.name}
                     ref={formField.ref}
+                    className="min-h-[100px] resize-y"
                   />
                 </FormControl>
-                {field.help_text && <FormDescription>{field.help_text}</FormDescription>}
+                {field.help_text && (
+                  <FormDescription className="text-xs text-slate-600 dark:text-slate-400">
+                    {field.help_text}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -395,7 +497,10 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
             name={field.id}
             render={({ field: formField }) => (
               <FormItem>
-                <FormLabel>{field.label}</FormLabel>
+                <FormLabel className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {field.label}
+                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                </FormLabel>
                 <FormControl>
                   <Input 
                     type="number"
@@ -405,9 +510,14 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
                     onBlur={formField.onBlur}
                     name={formField.name}
                     ref={formField.ref}
+                    className="h-10"
                   />
                 </FormControl>
-                {field.help_text && <FormDescription>{field.help_text}</FormDescription>}
+                {field.help_text && (
+                  <FormDescription className="text-xs text-slate-600 dark:text-slate-400">
+                    {field.help_text}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -422,7 +532,10 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
             name={field.id}
             render={({ field: formField }) => (
               <FormItem>
-                <FormLabel>{field.label}</FormLabel>
+                <FormLabel className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {field.label}
+                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                </FormLabel>
                 <FormControl>
                   <Input 
                     type="email"
@@ -432,9 +545,14 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
                     onBlur={formField.onBlur}
                     name={formField.name}
                     ref={formField.ref}
+                    className="h-10"
                   />
                 </FormControl>
-                {field.help_text && <FormDescription>{field.help_text}</FormDescription>}
+                {field.help_text && (
+                  <FormDescription className="text-xs text-slate-600 dark:text-slate-400">
+                    {field.help_text}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -449,13 +567,16 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
             name={field.id}
             render={({ field: formField }) => (
               <FormItem>
-                <FormLabel>{field.label}</FormLabel>
+                <FormLabel className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {field.label}
+                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                </FormLabel>
                 <Select 
                   onValueChange={formField.onChange}
                   value={formField.value || ''}
                 >
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-10">
                       <SelectValue placeholder={field.placeholder || 'Выберите...'} />
                     </SelectTrigger>
                   </FormControl>
@@ -467,7 +588,11 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
                     ))}
                   </SelectContent>
                 </Select>
-                {field.help_text && <FormDescription>{field.help_text}</FormDescription>}
+                {field.help_text && (
+                  <FormDescription className="text-xs text-slate-600 dark:text-slate-400">
+                    {field.help_text}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -481,27 +606,32 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
             control={form$.control}
             name={field.id}
             render={({ field: formField }) => (
-              <FormItem className="space-y-3">
-                <FormLabel>{field.label}</FormLabel>
+              <FormItem>
+                <FormLabel className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {field.label}
+                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                </FormLabel>
                 <FormControl>
                   <RadioGroup
                     onValueChange={formField.onChange}
                     value={formField.value || ''}
-                    className="flex flex-col space-y-1"
+                    className="space-y-2"
                   >
                     {field.options?.map(option => (
                       <div key={option.value} className="flex items-center space-x-2">
                         <RadioGroupItem value={option.value} id={`${field.id}-${option.value}`} />
-                        <Label 
-                          htmlFor={`${field.id}-${option.value}`}
-                        >
+                        <Label htmlFor={`${field.id}-${option.value}`} className="text-sm">
                           {option.label}
                         </Label>
                       </div>
                     ))}
                   </RadioGroup>
                 </FormControl>
-                {field.help_text && <FormDescription>{field.help_text}</FormDescription>}
+                {field.help_text && (
+                  <FormDescription className="text-xs text-slate-600 dark:text-slate-400">
+                    {field.help_text}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -516,55 +646,59 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
             name={field.id}
             render={() => (
               <FormItem>
-                <div className="mb-4">
-                  <FormLabel>{field.label}</FormLabel>
-                </div>
-                {field.options?.map(option => (
-                  <FormField
-                    key={option.value}
-                    control={form$.control}
-                    name={field.id}
-                    render={({ field: formField }) => {
-                      return (
-                        <FormItem
-                          key={option.value}
-                          className="flex flex-row items-start space-x-3 space-y-0"
-                        >
-                          <FormControl>
-                            <Checkbox
-                              id={`${field.id}-${option.value}`}
-                              checked={
-                                Array.isArray(formField.value) &&
-                                formField.value.includes(option.value)
-                              }
-                              onCheckedChange={(checked) => {
-                                const currentValues = Array.isArray(formField.value) 
-                                  ? [...formField.value] 
-                                  : [];
-                                if (checked) {
-                                  formField.onChange([...currentValues, option.value]);
-                                } else {
-                                  formField.onChange(
-                                    currentValues.filter(
-                                      (value) => value !== option.value
-                                    )
-                                  );
+                <FormLabel className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {field.label}
+                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                </FormLabel>
+                <div className="space-y-2">
+                  {field.options?.map(option => (
+                    <FormField
+                      key={option.value}
+                      control={form$.control}
+                      name={field.id}
+                      render={({ field: formField }) => {
+                        return (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                id={`${field.id}-${option.value}`}
+                                checked={
+                                  Array.isArray(formField.value) &&
+                                  formField.value.includes(option.value)
                                 }
-                              }}
-                            />
-                          </FormControl>
-                          <FormLabel
-                            htmlFor={`${field.id}-${option.value}`}
-                            className="font-normal"
-                          >
-                            {option.label}
-                          </FormLabel>
-                        </FormItem>
-                      );
-                    }}
-                  />
-                ))}
-                {field.help_text && <FormDescription>{field.help_text}</FormDescription>}
+                                onCheckedChange={(checked) => {
+                                  const currentValues = Array.isArray(formField.value) 
+                                    ? [...formField.value] 
+                                    : [];
+                                  if (checked) {
+                                    formField.onChange([...currentValues, option.value]);
+                                  } else {
+                                    formField.onChange(
+                                      currentValues.filter(
+                                        (value) => value !== option.value
+                                      )
+                                    );
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <FormLabel
+                              htmlFor={`${field.id}-${option.value}`}
+                              className="text-sm font-normal"
+                            >
+                              {option.label}
+                            </FormLabel>
+                          </FormItem>
+                        );
+                      }}
+                    />
+                  ))}
+                </div>
+                {field.help_text && (
+                  <FormDescription className="text-xs text-slate-600 dark:text-slate-400">
+                    {field.help_text}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -581,10 +715,15 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
             render={({ field: formField }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                 <div className="space-y-0.5">
-                  <FormLabel className="text-base">
+                  <FormLabel className="text-sm font-medium">
                     {field.label}
+                    {isRequired && <span className="text-red-500 ml-1">*</span>}
                   </FormLabel>
-                  {field.help_text && <FormDescription>{field.help_text}</FormDescription>}
+                  {field.help_text && (
+                    <FormDescription className="text-xs">
+                      {field.help_text}
+                    </FormDescription>
+                  )}
                 </div>
                 <FormControl>
                   <Switch
@@ -605,7 +744,10 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
             name={field.id}
             render={({ field: formField }) => (
               <FormItem>
-                <FormLabel>{field.label}</FormLabel>
+                <FormLabel className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {field.label}
+                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                </FormLabel>
                 <FormControl>
                   <Input
                     type="date"
@@ -614,9 +756,14 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
                     onBlur={formField.onBlur}
                     name={formField.name}
                     ref={formField.ref}
+                    className="h-10"
                   />
                 </FormControl>
-                {field.help_text && <FormDescription>{field.help_text}</FormDescription>}
+                {field.help_text && (
+                  <FormDescription className="text-xs text-slate-600 dark:text-slate-400">
+                    {field.help_text}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -631,7 +778,10 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
             name={field.id}
             render={({ field: formField }) => (
               <FormItem>
-                <FormLabel>{field.label}</FormLabel>
+                <FormLabel className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {field.label}
+                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                </FormLabel>
                 <FormControl>
                   <div className="space-y-2">
                     <Slider
@@ -642,12 +792,16 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
                       onValueChange={(values) => formField.onChange(values[0])}
                       className="py-4"
                     />
-                    <div className="text-center font-medium">
+                    <div className="text-center text-sm font-medium">
                       {formField.value || 0}
                     </div>
                   </div>
                 </FormControl>
-                {field.help_text && <FormDescription>{field.help_text}</FormDescription>}
+                {field.help_text && (
+                  <FormDescription className="text-xs text-slate-600 dark:text-slate-400">
+                    {field.help_text}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -661,86 +815,93 @@ export function PublicFormRenderer({ form, fields }: PublicFormRendererProps) {
   
   if (submitted) {
     return (
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>{form.title}</CardTitle>
-          <CardDescription>{form.description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert className="bg-green-50 border-green-200">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertTitle className="text-green-800">Успешно!</AlertTitle>
-            <AlertDescription className="text-green-700">
-              {form.confirmation_message || 'Спасибо! Ваш ответ был отправлен.'}
-            </AlertDescription>
-          </Alert>
-          
-          {form.redirect_url && (
-            <div className="mt-4 text-center text-sm text-muted-foreground">
-              <p>Перенаправление через {redirectCountdown} сек...</p>
-              <Button 
-                variant="outline" 
-                className="mt-2" 
-                onClick={() => window.location.href = form.redirect_url}
-                size="sm"
-              >
-                Перейти сейчас
-              </Button>
-            </div>
-          )}
-        </CardContent>
-        <CardFooter>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              if (redirectTimer !== null) {
-                clearInterval(redirectTimer);
-                setRedirectTimer(null);
-              }
-              setSubmitted(false);
-              form$.reset();
-            }}
-          >
-            Отправить еще один ответ
-          </Button>
-        </CardFooter>
-      </Card>
+      <div className="text-center space-y-6">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg mb-4 success-bounce">
+          <CheckCircle2 className="h-8 w-8 text-white" />
+        </div>
+        
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+            Успешно отправлено!
+          </h2>
+          <p className="text-slate-600 dark:text-slate-300">
+            {form.confirmation_message || 'Спасибо! Ваш ответ был успешно отправлен.'}
+          </p>
+        </div>
+
+        {form.redirect_url && (
+          <div className="p-4 bg-emerald-50/80 dark:bg-emerald-950/50 backdrop-blur-sm rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+              Перенаправление через {redirectCountdown} секунд...
+            </p>
+            <Button 
+              onClick={() => window.location.href = form.redirect_url}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              Перейти сейчас
+            </Button>
+          </div>
+        )}
+
+        <Button 
+          variant="outline" 
+          onClick={() => {
+            if (redirectTimer !== null) {
+              clearInterval(redirectTimer);
+              setRedirectTimer(null);
+            }
+            setSubmitted(false);
+            form$.reset();
+          }}
+          className="border-slate-300/50 dark:border-slate-600/50 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm"
+        >
+          Отправить еще один ответ
+        </Button>
+      </div>
     );
   }
   
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>{form.title}</CardTitle>
+    <div className="space-y-8">
+      {/* Form header */}
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+          {form.title}
+        </h2>
         {form.description && (
-          <CardDescription>{form.description}</CardDescription>
+          <p className="text-slate-600 dark:text-slate-300">
+            {form.description}
+          </p>
         )}
-      </CardHeader>
+      </div>
+
+      {/* Form */}
       <Form {...form$}>
-        <form onSubmit={form$.handleSubmit(onSubmit)} noValidate>
-          <CardContent className="space-y-6">
-            {fields.map(field => {
-              return !visibleFields[field.id] ? null : (
-                <div key={field.id}>
-                  {renderFormField(field)}
-                </div>
-              );
-            })}
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={submitting} className="w-full">
-              {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Отправка...
-                </>
-              ) : (
-                'Отправить'
-              )}
-            </Button>
-          </CardFooter>
+        <form onSubmit={form$.handleSubmit(onSubmit)} noValidate className="space-y-6">
+          {fields.map((field) => {
+            return !visibleFields[field.id] ? null : (
+              <div key={field.id} className="p-4 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm rounded-lg border border-white/20 dark:border-slate-700/30">
+                {renderFormField(field)}
+              </div>
+            );
+          })}
+          
+          <Button 
+            type="submit" 
+            disabled={submitting} 
+            className="w-full h-12 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg backdrop-blur-sm"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Отправка...
+              </>
+            ) : (
+              'Отправить форму'
+            )}
+          </Button>
         </form>
       </Form>
-    </Card>
+    </div>
   );
 } 

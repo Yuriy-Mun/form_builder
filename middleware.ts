@@ -13,6 +13,7 @@ export async function middleware(req: NextRequest) {
     {
       cookies: {
         get(name: string) {
+          console.log('name', name)
           return req.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
