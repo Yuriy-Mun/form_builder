@@ -95,7 +95,7 @@ export function ThemeTab() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
               {colorPalettes.map((palette) => (
                 <button
                   key={palette.color}
