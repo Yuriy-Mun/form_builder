@@ -8,7 +8,7 @@ import {
   IconNotification,
   IconUserCircle,
 } from "@tabler/icons-react"
-import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/hooks/useApi"
 
 import {
   Avatar,
@@ -42,38 +42,22 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
+  const { signOut } = useAuth()
 
   const handleLogout = async () => {
     try {
-      // Supabase signOut
-      const { error } = await supabase.auth.signOut({ 
-        scope: 'global' 
-      })
-      console.log("signOut")
-      if (error) {
-        console.error("Error signing out:", error)
-        return
-      }
-
+      await signOut()
+      
       // Очистка localStorage
       if (typeof window !== 'undefined') {
         localStorage.clear()
         console.log("localStorage cleared")
-        // Удаление всех куков
-        const cookies = document.cookie.split(";");
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i];
-          const eqPos = cookie.indexOf("=");
-          const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.${window.location.hostname};`;
-          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;`;
-        }
         
         // Очистка sessionStorage
         sessionStorage.clear()
       }
       
-      // Redirect to login page or home page after successful logout
+      // Redirect to login page after successful logout
       router.push("/admin/login")
       router.refresh()
     } catch (error) {

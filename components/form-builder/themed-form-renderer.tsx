@@ -16,10 +16,10 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
-import { getSupabaseClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ThemedFormWrapper } from './themed-form-wrapper';
+import { apiClient } from '@/lib/api/client';
 
 interface FormFieldOption {
   label: string;
@@ -282,116 +282,8 @@ export function ThemedFormRenderer({ form, fields }: ThemedFormRendererProps) {
         return acc;
       }, {} as FormValues);
       
-      const supabase = getSupabaseClient();
-      
-      // Get current user (if authentication is required)
-      let userId = null;
-      if (form.require_login) {
-        const { data: { user } } = await supabase.auth.getUser();
-        userId = user?.id || null;
-      }
-      
-      // First, create the main form response record
-      const { data: responseData, error: responseError } = await supabase
-        .from('form_responses')
-        .insert({
-          form_id: form.id,
-          user_id: userId,
-          completed_at: new Date().toISOString(),
-          data: filteredValues, // Store as JSONB for backup/reference
-          metadata: {
-            user_agent: navigator.userAgent,
-            timestamp: new Date().toISOString(),
-            form_version: form.version || '1.0'
-          }
-        })
-        .select('id')
-        .single();
-      
-      if (responseError) {
-        throw new Error(responseError.message);
-      }
-      
-      const responseId = responseData.id;
-      
-      // Then, save each field value individually in form_response_values
-      const responseValues = [];
-      
-      for (const [fieldId, value] of Object.entries(filteredValues)) {
-        // Skip empty values
-        if (value === '' || value === null || value === undefined) continue;
-        
-        // Find the field to get its type
-        const field = fields.find(f => f.id === fieldId);
-        if (!field) continue;
-        
-        let processedValue = value;
-        let numericValue = null;
-        let booleanValue = null;
-        
-        // Process value based on field type
-        switch (field.type) {
-          case 'number':
-            numericValue = typeof value === 'number' ? value : parseFloat(value);
-            processedValue = String(value);
-            break;
-          case 'switch':
-          case 'toggle':
-            booleanValue = Boolean(value);
-            processedValue = String(value);
-            break;
-          case 'checkbox':
-            // For checkboxes, create separate entries for each selected option
-            if (Array.isArray(value) && value.length > 0) {
-              for (const option of value) {
-                responseValues.push({
-                  response_id: responseId,
-                  field_id: fieldId,
-                  value: option,
-                  numeric_value: null,
-                  boolean_value: null
-                });
-              }
-              continue; // Skip the main entry for checkbox arrays
-            }
-            break;
-          case 'radio':
-          case 'select':
-          case 'text':
-          case 'email':
-          case 'url':
-          case 'tel':
-          case 'textarea':
-          case 'date':
-          case 'time':
-          case 'file':
-          default:
-            processedValue = String(value);
-            break;
-        }
-        
-        // Add the main entry (skip if it was a checkbox array)
-        if (field.type !== 'checkbox' || !Array.isArray(value)) {
-          responseValues.push({
-            response_id: responseId,
-            field_id: fieldId,
-            value: processedValue,
-            numeric_value: numericValue,
-            boolean_value: booleanValue
-          });
-        }
-      }
-      
-      // Insert all response values
-      if (responseValues.length > 0) {
-        const { error: valuesError } = await supabase
-          .from('form_response_values')
-          .insert(responseValues);
-        
-        if (valuesError) {
-          throw new Error(valuesError.message);
-        }
-      }
+      // Submit form response using API route
+      await apiClient.responses.submit(form.id, filteredValues);
       
       setSubmitted(true);
       toast.success('Form submitted successfully!');

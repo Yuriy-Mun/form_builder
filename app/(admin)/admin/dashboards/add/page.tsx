@@ -5,7 +5,6 @@ import DashboardForm from '../dashboard-form';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export const dynamic = 'force-dynamic';
 
 export default function AddDashboardPage() {
   return (

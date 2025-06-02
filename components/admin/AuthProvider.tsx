@@ -1,18 +1,15 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { supabase } from '@/lib/supabase'
-import { User, Session } from '@supabase/supabase-js'
+import { apiClient } from '@/lib/api/client'
 
 type AuthContextType = {
-  user: User | null
-  session: Session | null
+  user: any | null
   loading: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
   loading: true
 })
 
@@ -21,59 +18,35 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
+  const [user, setUser] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const checkSession = async () => {
+    const checkAuth = async () => {
       try {
-        // Get the current session first
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-        
-        if (sessionError) {
-          console.error('Error fetching session:', sessionError)
-          setSession(null)
-          setUser(null)
-        } else if (sessionData?.session) {
-          setSession(sessionData.session)
-          setUser(sessionData.session.user)
-        } else {
-          // If no session, try to get user anyway
-          const { data: { user }, error: userError } = await supabase.auth.getUser()
-          if (!userError && user) {
-            setUser(user)
-          } else {
-            setUser(null)
-          }
-        }
+        const { user } = await apiClient.auth.getUser()
+        setUser(user)
       } catch (error) {
-        console.error('Unexpected error:', error)
-        setSession(null)
+        console.error('Auth check failed:', error)
         setUser(null)
       } finally {
         setLoading(false)
       }
     }
 
-    // Check session on initial load
-    checkSession()
+    // Check auth on initial load
+    checkAuth()
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+    // Set up periodic auth checks (optional)
+    const interval = setInterval(checkAuth, 5 * 60 * 1000) // Check every 5 minutes
 
-    // Cleanup subscription on unmount
     return () => {
-      subscription.unsubscribe()
+      clearInterval(interval)
     }
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, session, loading }}>
+    <AuthContext.Provider value={{ user, loading }}>
       {children}
     </AuthContext.Provider>
   )

@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { getSupabaseClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api/client';
 
 interface ImportWordDialogProps {
   open: boolean;
@@ -83,11 +83,6 @@ export function ImportWordDialog({ open, onClose, onImportSuccess }: ImportWordD
 
   // Add this function to handle saving the form
   const handleSaveForm = async () => {
-    if (formData.fields.length === 0) {
-      toast.error('No fields to save');
-      return;
-    }
-    
     if (!formData.title.trim()) {
       toast.error('Title is required');
       return;
@@ -96,59 +91,27 @@ export function ImportWordDialog({ open, onClose, onImportSuccess }: ImportWordD
     setIsSaving(true);
     
     try {
-      // Create Supabase client
-      const supabase = getSupabaseClient();
+      // First, create the form using API route
+      const { form: formRecord } = await apiClient.forms.create({
+        title: formData.title,
+        description: formData.description || null,
+        active: formData.active,
+      });
       
-      // Get the current user
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !userData.user) {
-        toast.error('You must be logged in to create a form');
-        setTimeout(() => {
-          window.location.href = '/admin/login';
-        }, 1000);
-        return;
-      }
-      
-      // First, insert the form
-      const { data: formRecord, error: formError } = await supabase
-        .from('forms')
-        .insert({
-          title: formData.title,
-          description: formData.description || null,
-          active: formData.active,
-          created_by: userData.user.id
+      // Then create the form fields
+      const fieldsPromises = formData.fields.map((field, index) => 
+        apiClient.fields.create(formRecord.id, {
+          type: field.type,
+          label: field.label,
+          placeholder: field.placeholder || '',
+          required: !!field.required,
+          options: field.options && field.options.length > 0 ? field.options : null,
+          conditional_logic: field.conditional_logic || null,
+          position: index,
         })
-        .select()
-        .single();
+      );
       
-      if (formError) {
-        throw new Error(`Failed to create form: ${formError.message}`);
-      }
-      
-      if (!formRecord) {
-        throw new Error('Failed to create form: No data returned');
-      }
-      
-      // Then insert the form fields
-      const formattedFields = formData.fields.map((field, index) => ({
-        form_id: formRecord.id,
-        type: field.type,
-        label: field.label,
-        placeholder: field.placeholder || '',
-        required: !!field.required,
-        options: field.options && field.options.length > 0 ? field.options : null,
-        conditional_logic: field.conditional_logic || null,
-        position: index,
-      }));
-      
-      const { error: fieldsError } = await supabase
-        .from('form_fields')
-        .insert(formattedFields);
-        
-      if (fieldsError) {
-        throw new Error(`Failed to create form fields: ${fieldsError.message}`);
-      }
+      await Promise.all(fieldsPromises);
       
       toast.success('Form created successfully!');
       onClose();

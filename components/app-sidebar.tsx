@@ -12,6 +12,7 @@ import {
   IconUserShield,
   IconClipboardList,
   IconChartBar,
+  IconUsers,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -59,6 +60,11 @@ const data = {
       icon: IconUserShield,
       actionUrl: "/admin/roles/add",
       actionIcon: IconPlus,
+    },
+    {
+      title: "Users",
+      url: "/admin/users",
+      icon: IconUsers,
     },
     {
       title: "Permissions",

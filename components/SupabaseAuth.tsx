@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,51 +10,27 @@ import { toast } from 'sonner';
 export default function SupabaseAuth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { signIn, signUp, loading } = useAuth();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success('Signed in successfully!');
-      }
+      await signIn(email, password);
+      toast.success('Signed in successfully!');
     } catch (error) {
-      toast.error('An unexpected error occurred');
-      console.error(error);
-    } finally {
-      setLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Sign in failed');
     }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success('Signed up successfully! Please check your email for confirmation.');
-      }
+      await signUp(email, password);
+      toast.success('Signed up successfully! Please check your email for confirmation.');
     } catch (error) {
-      toast.error('An unexpected error occurred');
-      console.error(error);
-    } finally {
-      setLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Sign up failed');
     }
   };
 

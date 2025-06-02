@@ -42,7 +42,7 @@ export default function PublicFormLayout({
           
           {/* Footer */}
           <div className="text-center text-sm text-slate-500 dark:text-slate-400">
-            © {new Date().getFullYear()} Form Builder — Secure & Private
+            Form Builder — Secure & Private
           </div>
         </div>
       </div>

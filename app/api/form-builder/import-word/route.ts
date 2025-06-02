@@ -4,6 +4,7 @@ import { generateObject, generateText } from 'ai';
 import * as mammoth from 'mammoth';
 import { z } from 'zod';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { getAuthenticatedUser, createClient } from '@/lib/supabase/server';
 
 // Check for OpenAI API key
 const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -65,8 +66,8 @@ const CreateFormSchema = z.object({
 });
 
 // Helper function to create a Supabase client with admin privileges
-function createServerClient() {
-  return getSupabaseClient();
+async function createServerClient() {
+  return await createClient();
 }
 
 // Helper function to send SSE messages
@@ -275,12 +276,12 @@ async function processLargeDocument(extractedText: string, controller?: Readable
 
 // Helper function to create a new form from imported fields
 async function createForm(title: string, description: string | null, fields: any[], userId: string) {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   
   // First, check if user exists and has permissions
-  const { data: userCheck, error: userError } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
   
-  if (userError || !userCheck.user) {
+  if (!user) {
     throw new Error('Authentication required');
   }
   
@@ -463,11 +464,10 @@ export async function POST(request: NextRequest) {
       }
       
       // Get the current user
-      const supabase = createServerClient();
-      const { data: userData, error: userError } = await supabase.auth.getUser();
+      const user = await getAuthenticatedUser();
       
-      if (userError || !userData.user) {
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      if (!user.id) {
+        return NextResponse.json({ error: 'User ID not available' }, { status: 401 });
       }
       
       // Create the form
@@ -475,7 +475,7 @@ export async function POST(request: NextRequest) {
         data.title,
         data.description || null,
         data.fields,
-        userData.user.id
+        user.id
       );
       
       return NextResponse.json({

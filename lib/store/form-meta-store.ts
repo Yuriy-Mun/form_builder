@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getSupabaseClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api/client';
 
 export interface Form {
   id: string;
@@ -32,6 +32,10 @@ interface FormMetaState {
   error: string | null;
   isSaving: boolean;
   
+  // Защита от дублирования запросов
+  isLoading: boolean;
+  lastFetchedFormId: string | null;
+  
   // Operations
   fetchForm: (formId: string) => Promise<void>;
   updateFormTitle: (title: string) => Promise<void>;
@@ -55,36 +59,31 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
   loading: true,
   error: null,
   isSaving: false,
+  isLoading: false,
+  lastFetchedFormId: null,
   
   // Fetch form
   fetchForm: async (formId: string) => {
-    const supabase = getSupabaseClient();
+    const { isLoading, lastFetchedFormId } = get();
     
-    set({ loading: true, error: null });
+    // Предотвращаем дублирование запросов
+    if (isLoading || lastFetchedFormId === formId) {
+      return;
+    }
+    
+    set({ loading: true, error: null, isLoading: true });
     
     try {
       // Check if user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
+      try {
+        await apiClient.auth.getUser();
+      } catch (userError) {
         console.error('User authentication error:', userError);
         throw new Error('You must be logged in to view this form');
       }
       
       // Fetch form
-      const { data: formData, error: formError } = await supabase
-        .from('forms')
-        .select('*')
-        .eq('id', formId)
-        .single();
-        
-      if (formError) {
-        console.error('Error fetching form:', formError);
-        if (formError.code === 'PGRST116') {
-          throw new Error('Form not found');
-        }
-        throw new Error(formError.message);
-      }
+      const { form: formData } = await apiClient.forms.get(formId);
       
       if (!formData) {
         throw new Error('Form not found');
@@ -100,6 +99,7 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
           formTheme: 'default',
           layout: 'default',
         },
+        lastFetchedFormId: formId,
       });
     } catch (err) {
       console.error(err);
@@ -107,7 +107,7 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
       set({ error: errorMessage });
       
       // If error is form not found, initialize new form
-      if (errorMessage === 'Form not found' && formId) {
+      if (errorMessage.includes('not found') && formId) {
         const newForm = {
           id: formId,
           title: 'Untitled',
@@ -123,11 +123,12 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
             formTheme: 'default',
             layout: 'default',
           },
+          lastFetchedFormId: formId,
         });
         console.log('Form not found, initializing as new untitled form.');
       }
     } finally {
-      set({ loading: false });
+      set({ loading: false, isLoading: false });
     }
   },
   
@@ -148,24 +149,15 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
   // Update form title
   updateFormTitle: async (title: string) => {
     const { form } = get();
-    const supabase = getSupabaseClient();
     
     if (!form || title.trim() === '' || title === form.title) return;
     
     set({ isSaving: true });
     
     try {
-      const { error } = await supabase
-        .from('forms')
-        .update({ title })
-        .eq('id', form.id);
-        
-      if (error) {
-        console.error('Error updating form title:', error);
-        return;
-      }
+      const { form: updatedForm } = await apiClient.forms.update(form.id, { title });
       
-      set({ form: { ...form, title }, formTitle: title });
+      set({ form: updatedForm, formTitle: title });
     } catch (err) {
       console.error('Error updating title:', err);
     } finally {
@@ -176,24 +168,15 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
   // Update form description
   updateFormDescription: async (description: string) => {
     const { form } = get();
-    const supabase = getSupabaseClient();
     
     if (!form || description === form.description) return;
     
     set({ isSaving: true });
     
     try {
-      const { error } = await supabase
-        .from('forms')
-        .update({ description })
-        .eq('id', form.id);
-        
-      if (error) {
-        console.error('Error updating form description:', error);
-        return;
-      }
+      const { form: updatedForm } = await apiClient.forms.update(form.id, { description });
       
-      set({ form: { ...form, description }, formDescription: description });
+      set({ form: updatedForm, formDescription: description });
     } catch (err) {
       console.error('Error updating description:', err);
     } finally {
@@ -204,24 +187,15 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
   // Update form status
   updateFormStatus: async (status: 'draft' | 'published' | 'locked') => {
     const { form } = get();
-    const supabase = getSupabaseClient();
     
     if (!form) return;
     
     set({ isSaving: true });
     
     try {
-      const { error } = await supabase
-        .from('forms')
-        .update({ status })
-        .eq('id', form.id);
-        
-      if (error) {
-        console.error('Error updating form status:', error);
-        return;
-      }
+      const { form: updatedForm } = await apiClient.forms.update(form.id, { status });
       
-      set({ form: { ...form, status }, formStatus: status });
+      set({ form: updatedForm, formStatus: status });
     } catch (err) {
       console.error('Error updating status:', err);
     } finally {
@@ -232,7 +206,6 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
   // Update theme settings
   updateThemeSettings: async (settings: Partial<{ primaryColor: string; formTheme: string; layout: string }>) => {
     const { form, themeSettings } = get();
-    const supabase = getSupabaseClient();
     
     if (!form) return;
     
@@ -247,18 +220,12 @@ export const useFormMetaStore = create<FormMetaState>((set, get) => ({
       
       const updatedThemeSettings = { ...currentThemeSettings, ...settings };
       
-      const { error } = await supabase
-        .from('forms')
-        .update({ theme_settings: updatedThemeSettings })
-        .eq('id', form.id);
-        
-      if (error) {
-        console.error('Error updating theme settings:', error);
-        return;
-      }
+      const { form: updatedForm } = await apiClient.forms.update(form.id, { 
+        theme_settings: updatedThemeSettings 
+      });
       
       set({
-        form: { ...form, theme_settings: updatedThemeSettings },
+        form: updatedForm,
         themeSettings: updatedThemeSettings,
       });
     } catch (err) {

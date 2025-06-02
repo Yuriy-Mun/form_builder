@@ -24,12 +24,23 @@ bun install
 
 3. Создайте файл окружения `.env.local` и добавьте следующие переменные:
 ```
+# Основные переменные Supabase
 NEXT_PUBLIC_SUPABASE_URL=ваш-url-supabase-проекта
 NEXT_PUBLIC_SUPABASE_ANON_KEY=ваш-анонимный-ключ-supabase
+
+# Обязательно для системы кеширования - Service Role Key (держите в секрете!)
+SUPABASE_SERVICE_ROLE_KEY=ваш-service-role-ключ-supabase
+
+# Опционально: для импорта из Word документов
+CLAUDE_API_KEY=ваш-api-ключ-claude
+
+# Опционально: для webhook-ов внешней инвалидации кеша
+REVALIDATE_SECRET=ваш-webhook-секрет
 ```
 
-Вы можете получить эти данные из панели управления Supabase.
-
+Вы можете получить эти данные из панели управления Supabase:
+- **URL и Anon Key**: Settings → API
+- **Service Role Key**: Settings → API (⚠️ Важно: держите этот ключ в секрете!)
 
 ### Создание структуры базы данных и администратора
 

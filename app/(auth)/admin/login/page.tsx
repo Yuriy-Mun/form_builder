@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { getSupabaseClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api/client';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -17,19 +17,13 @@ export default function AdminLoginPage() {
   const searchParams = useSearchParams();
   const redirectedFrom = searchParams.get('redirectedFrom') || '/admin';
   
-  // Create the Supabase client using our utility function
-  const supabase = getSupabaseClient();
-  
   useEffect(() => {
-    // Check if already authenticated using getUser for security
+    // Check if already authenticated
     const checkAuth = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        
-        if (user && !error) {
-          router.push('/admin');
-          router.refresh();
-        }
+        await apiClient.auth.getUser();
+        router.push('/admin');
+        router.refresh();
       } catch (err) {
         // Auth error, stay on login page
       }
@@ -45,16 +39,9 @@ export default function AdminLoginPage() {
     
     try {
       // Sign in with email and password
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      await apiClient.auth.signIn(email, password);
       
-      if (error) {
-        throw error;
-      }
-      
-      // After successful login, refresh the page to apply session cookie
+      // After successful login, redirect
       router.push(redirectedFrom);
       router.refresh();
     } catch (err: any) {

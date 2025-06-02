@@ -5,7 +5,6 @@ import DashboardList from './dashboard-list';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export const dynamic = 'force-dynamic';
 
 export default function DashboardsPage() {
   return (

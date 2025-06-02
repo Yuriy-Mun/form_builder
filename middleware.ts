@@ -3,36 +3,12 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { updateSession } from '@/lib/supabase/middleware'
 
 export async function middleware(req: NextRequest) {
-  // Call updateSession to refresh the session cookie
-  const res = await updateSession(req)
+  console.time('updateSession')
+  // Call updateSession to refresh the session cookie and get user
+  const { response: res, user, supabase } = await updateSession(req)
+  console.timeEnd('updateSession')
 
-  // Create a Supabase client configured to use cookies
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          console.log('name', name)
-          return req.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          res.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: CookieOptions) {
-          res.cookies.delete(name)
-        },
-      },
-    }
-  )
-
-  // Get user - this is safe because we already refreshed the session above
-  const { data: { user } } = await supabase.auth.getUser()
-  console.log('user', user)
+  console.time('checkAdminRoutes')
   // Only check admin routes (except login)
   if (req.nextUrl.pathname.startsWith('/admin') && 
       req.nextUrl.pathname !== '/admin/login') {
@@ -66,7 +42,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/admin/login', req.url));
     }
   }
-
+  console.timeEnd('checkAdminRoutes')
   return res
 }
 

@@ -1,28 +1,22 @@
-import { createServerComponentClient } from '@/lib/supabase/server';
+import { getAuthenticatedUser } from '@/lib/supabase/server';
+import { getCachedForm } from '@/lib/cache';
 import { notFound } from 'next/navigation';
 import ResponsesClient from './responses-client';
-
-export const dynamic = 'force-dynamic';
+import { Suspense } from 'react';
+import { ResponsiveFormResponsesSkeleton } from '@/components/ui/form-responses-skeleton';
+import SuspendedFormResponsesComponent from './suspended';
+import { unstable_noStore as noStore } from 'next/cache';
 
 export default async function FormResponsesPage({ 
   params 
 }: { 
   params: Promise<{ id: string }> 
 }) {
-  const supabase = await createServerComponentClient();
-  const { id } = await params;
-
-  // Fetch only the form to check if it exists and get basic details
-  const { data: form, error: formError } = await supabase
-    .from('forms')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (formError || !form) {
-    console.error('Error fetching form:', formError);
-    return notFound();
-  }
-
-  return <ResponsesClient formId={id} form={form} />;
-} 
+  // Opt out of static rendering to ensure cookies are available
+  noStore();
+  return (
+    <Suspense fallback={<ResponsiveFormResponsesSkeleton />}>
+      <SuspendedFormResponsesComponent params={params} />
+    </Suspense>
+  );
+}

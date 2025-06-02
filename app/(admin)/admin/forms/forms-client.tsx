@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImportWordDialog } from '@/components/form-builder/import-word-dialog';
 import { FormField } from '@/components/form-builder/form-field-editor';
-import { createBrowserClient } from '@supabase/ssr';
-import { useQuery } from '@tanstack/react-query';
+import { useForms, useCreateForm } from '@/hooks/useApi';
 import { toast } from 'sonner';
 import {
   Edit,
@@ -62,28 +61,12 @@ export default function FormsClient() {
   const [isMobile, setIsMobile] = useState(false);
   const router = useRouter();
 
-  // Initialize Supabase client component-side
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
-  // Fetch forms using React Query
-  const { data: forms = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['forms'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('forms')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      return data || [];
-    }
-  });
+  // Use API hooks instead of direct Supabase calls
+  const { data: formsData, loading: isLoading, error, refetch } = useForms();
+  const { mutate: createForm, loading: isCreating } = useCreateForm();
+  
+  const forms = formsData?.forms || [];
+  const isError = !!error;
 
   // Определение мобильного устройства
   useEffect(() => {
@@ -105,57 +88,19 @@ export default function FormsClient() {
 
   const handleCreateNewForm = async () => {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-      if (userError) {
-        console.error('Error fetching user:', userError);
-        // Handle error (e.g., show a notification to the user)
-        alert('Error fetching user data. Please try again.');
-        return;
-      }
-
-      if (!user) {
-        console.error('User not authenticated');
-        // Handle case where user is not authenticated (e.g., redirect to login)
-        alert('You must be logged in to create a form.');
-        router.push('/admin/login'); // Or your login page
-        return;
-      }
-
-      // Using 'created_by' instead of 'user_id' to match the database schema
-      const { data: newForm, error: insertError } = await supabase
-        .from('forms')
-        .insert({
-          title: 'Untitled',
-          created_by: user.id, // Associate form with the current user using the correct column name
-          description: null,
-          active: true,
-          // The other fields (created_at, updated_at) have database defaults
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error creating form with Supabase:', insertError);
-        // Handle Supabase-specific errors
-        alert(`Failed to create form: ${insertError.message}`);
-        throw new Error(insertError.message);
-      }
-
-      if (!newForm) {
-        console.error('No data returned after insert');
-        alert('Failed to create form. Please try again.');
-        throw new Error('Failed to create form, no data returned from Supabase.');
-      }
+      const { form: newForm } = await createForm({
+        title: 'Untitled',
+        description: null,
+        active: true,
+      });
 
       console.log('Form created successfully:', newForm);
       // Refresh the forms list before navigating
       await refetch();
       router.push(`/admin/forms/edit/${newForm.id}`);
     } catch (error) {
-      console.error('Client-side error creating form:', error);
-      // Display a generic error message or use a toast notification system
-      alert('An error occurred. Please check console for details.');
+      console.error('Error creating form:', error);
+      toast.error('Не удалось создать форму. Попробуйте еще раз.');
     }
   };
 
@@ -393,7 +338,7 @@ export default function FormsClient() {
         </div>
       ) : isError ? (
         <div className="bg-red-50 text-red-600 p-4 rounded-lg mt-8">
-          <p>Error loading forms: {error?.message || 'An unknown error occurred'}</p>
+          <p>Error loading forms: {error || 'An unknown error occurred'}</p>
         </div>
       ) : filteredForms.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-8">

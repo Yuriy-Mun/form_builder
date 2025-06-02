@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Form } from './form-meta-store';
-import { getSupabaseClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api/client';
 
 // Field-specific settings interfaces
 interface NumberSettings {
@@ -81,6 +81,10 @@ interface FormFieldsState {
   error: string | null;
   isFieldSaving: boolean;
   
+  // Защита от дублирования запросов
+  isLoading: boolean;
+  lastFetchedFormId: string | null;
+  
   // Operations
   fetchFormFields: (formId: string) => Promise<void>;
   addField: (formId: string, fieldType: string) => Promise<void>;
@@ -105,42 +109,40 @@ export const useFormFieldsStore = create<FormFieldsState>((set, get) => ({
   loading: false,
   error: null,
   isFieldSaving: false,
+  isLoading: false,
+  lastFetchedFormId: null,
   
   // Fetch form fields
   fetchFormFields: async (formId: string) => {
-    const supabase = getSupabaseClient();
+    const { isLoading, lastFetchedFormId } = get();
     
-    set({ loading: true, error: null });
+    // Предотвращаем дублирование запросов
+    if (isLoading || lastFetchedFormId === formId) {
+      return;
+    }
+    
+    set({ loading: true, error: null, isLoading: true });
     
     try {
       // Fetch form fields
-      const { data: fieldsData, error: fieldsError } = await supabase
-        .from('form_fields')
-        .select('*')
-        .eq('form_id', formId)
-        .order('position', { ascending: true });
-        
-      if (fieldsError) {
-        console.error('Error fetching form fields:', fieldsError);
-        throw new Error(fieldsError.message);
-      }
+      const { fields: fieldsData } = await apiClient.fields.list(formId);
       
       set({
         formFields: fieldsData || [],
+        lastFetchedFormId: formId,
       });
     } catch (err) {
       console.error(err);
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
       set({ error: errorMessage });
     } finally {
-      set({ loading: false });
+      set({ loading: false, isLoading: false });
     }
   },
   
   // Add a new field
   addField: async (formId: string, fieldType: string) => {
     const { formFields } = get();
-    const supabase = getSupabaseClient();
     
     if (!formId) return;
     
@@ -178,16 +180,7 @@ export const useFormFieldsStore = create<FormFieldsState>((set, get) => ({
         } : {})
       };
       
-      const { data, error } = await supabase
-        .from('form_fields')
-        .insert(newField)
-        .select()
-        .single();
-        
-      if (error) {
-        console.error('Error adding field:', error);
-        throw new Error(error.message);
-      }
+      const { field: data } = await apiClient.fields.create(formId, newField);
       
       set({ 
         formFields: [...formFields, data], 
@@ -227,20 +220,17 @@ export const useFormFieldsStore = create<FormFieldsState>((set, get) => ({
   // Delete a field
   deleteField: async (fieldId: string) => {
     const { formFields, selectedField } = get();
-    const supabase = getSupabaseClient();
     
     set({ isFieldSaving: true });
     
     try {
-      const { error } = await supabase
-        .from('form_fields')
-        .delete()
-        .eq('id', fieldId);
-        
-      if (error) {
-        console.error('Error deleting field:', error);
-        throw new Error(error.message);
+      // Find the field to get the form_id
+      const fieldToDelete = formFields.find(f => f.id === fieldId);
+      if (!fieldToDelete) {
+        throw new Error('Field not found');
       }
+      
+      await apiClient.fields.delete(fieldToDelete.form_id, fieldId);
       
       // Remove field from local state and deselect if it was selected
       const updatedFields = formFields.filter(f => f.id !== fieldId);
@@ -269,22 +259,17 @@ export const useFormFieldsStore = create<FormFieldsState>((set, get) => ({
   // Update a field
   updateField: async (fieldId: string, updates: Partial<FormField>) => {
     const { formFields, selectedField } = get();
-    const supabase = getSupabaseClient();
     
     set({ isFieldSaving: true });
     
     try {
-      const { data, error } = await supabase
-        .from('form_fields')
-        .update(updates)
-        .eq('id', fieldId)
-        .select()
-        .single();
-        
-      if (error) {
-        console.error('Error updating field:', error);
-        throw new Error(error.message);
+      // Find the field to get the form_id
+      const fieldToUpdate = formFields.find(f => f.id === fieldId);
+      if (!fieldToUpdate) {
+        throw new Error('Field not found');
       }
+      
+      const { field: data } = await apiClient.fields.update(fieldToUpdate.form_id, fieldId, updates);
       
       // Update field in local state
       const updatedFields = formFields.map(f => 
@@ -309,28 +294,18 @@ export const useFormFieldsStore = create<FormFieldsState>((set, get) => ({
   
   // Update field positions (used for drag and drop)
   updateFieldPositions: async (fields: FormField[]) => {
-    const supabase = getSupabaseClient();
-    
     set({ isFieldSaving: true });
     
     try {
-      // Prepare updates for each field's position
-      const updates = fields.map(field => ({
-        id: field.id,
-        position: field.position
-      }));
+      // Get form_id from the first field
+      if (fields.length === 0) return;
       
-      // Use upsert to update multiple records
-      const { error } = await supabase
-        .from('form_fields')
-        .upsert(updates);
-        
-      if (error) {
-        console.error('Error updating field positions:', error);
-        throw new Error(error.message);
-      }
+      const formId = fields[0].form_id;
       
-      set({ formFields: fields });
+      // Use bulk update API
+      const { fields: updatedFields } = await apiClient.fields.bulkUpdate(formId, fields);
+      
+      set({ formFields: updatedFields });
     } catch (err) {
       console.error('Error updating field positions:', err);
     } finally {

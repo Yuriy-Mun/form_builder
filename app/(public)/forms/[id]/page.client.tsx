@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { ThemedFormRenderer } from "@/components/form-builder/themed-form-renderer";
-import { FormSkeleton } from "@/components/form-builder/form-skeleton";
+import { FormPageSkeleton } from "@/components/ui/form-page-skeleton";
 import { FormError } from "@/components/form-builder/form-error";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
 import { useRouter } from "next/navigation";
 
 interface PublicFormPageClientProps {
@@ -46,10 +46,9 @@ export default function PublicFormPageClient({
         // If the form requires authentication, verify
         if (initialFormData?.form?.require_login) {
           setAuthChecking(true);
-          const supabase = getSupabaseClient();
-          const { data: { user } } = await supabase.auth.getUser();
-          
-          if (!user) {
+          try {
+            await apiClient.auth.getUser();
+          } catch (authError) {
             setError('Authentication is required to access this form');
           }
           
@@ -81,36 +80,23 @@ export default function PublicFormPageClient({
         throw new Error('Form not found');
       }
 
-      const supabase = getSupabaseClient();
+      // Request the form using API route
+      const { form: formData } = await apiClient.forms.get(formId);
       
-      // Request the form
-      const { data: formData, error: formError } = await supabase
-        .from('forms')
-        .select('*')
-        .eq('id', formId)
-        .eq('active', true)
-        .single();
-      
-      if (formError) throw new Error(formError.message);
       if (!formData) throw new Error('Form not found');
+      if (!formData.active) throw new Error('Form is not active');
       
       // Check if authentication is required
       if (formData.require_login) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        try {
+          await apiClient.auth.getUser();
+        } catch (authError) {
           throw new Error('Authentication is required for this form');
         }
       }
       
-      // Request form fields
-      const { data: fieldsData, error: fieldsError } = await supabase
-        .from('form_fields')
-        .select('*')
-        .eq('form_id', formId)
-        .eq('active', true)
-        .order('position', { ascending: true });
-      
-      if (fieldsError) throw new Error(fieldsError.message);
+      // Request form fields using API route
+      const { fields: fieldsData } = await apiClient.fields.list(formId);
       
       setForm(formData);
       setFields(fieldsData || []);
@@ -132,7 +118,7 @@ export default function PublicFormPageClient({
   };
   
   if (loading || authChecking) {
-    return <FormSkeleton />;
+    return <FormPageSkeleton />;
   }
   
   if (error) {

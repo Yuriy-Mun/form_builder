@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { FormBuilder, FormValues } from '@/components/form-builder/form-builder';
 import { FormFieldEditor, FormField } from '@/components/form-builder/form-field-editor';
 import { toast } from 'sonner';
-import { getSupabaseClient } from '@/lib/supabase/client';
 import { checkUserPermissions } from '@/lib/supabase/forms';
 import { syncAuthUserWithDatabase } from '@/lib/supabase/user-sync';
+import { apiClient } from '@/lib/api/client';
 
 export default function AddFormPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -77,46 +77,32 @@ export default function AddFormPage() {
     setIsSubmitting(true);
     
     try {
-      const supabase = getSupabaseClient();
+      // First, create the form using our API
+      const { form } = await apiClient.forms.create({
+        title: formDetails.title,
+        description: formDetails.description || null,
+        active: formDetails.active,
+      });
       
-      // First, insert the form
-      const { data: formData, error: formError } = await supabase
-        .from('forms')
-        .insert({
-          title: formDetails.title,
-          description: formDetails.description || null,
-          active: formDetails.active,
-          created_by: userId
-        })
-        .select()
-        .single();
-      
-      if (formError) {
-        throw new Error(formError.message);
-      }
-      
-      if (!formData) {
+      if (!form) {
         throw new Error('Failed to create form');
       }
       
-      // Then, insert the form fields
+      // Then, create the form fields if any exist
       if (fields.length > 0) {
         const formattedFields = fields.map((field, index) => ({
-          form_id: formData.id,
           type: field.type,
           label: field.label,
           options: field.options || null,
           required: field.required,
           placeholder: field.placeholder || null,
-          order: index,
+          position: index, // Use position instead of order
+          active: true,
         }));
         
-        const { error: fieldsError } = await supabase
-          .from('form_fields')
-          .insert(formattedFields);
-          
-        if (fieldsError) {
-          throw new Error(fieldsError.message);
+        // Create fields one by one or use bulk update
+        for (const field of formattedFields) {
+          await apiClient.fields.create(form.id, field);
         }
       }
       
