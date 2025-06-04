@@ -1,0 +1,464 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { IconFileUpload, IconLoader2, IconCheck, IconX, IconAlertCircle } from '@tabler/icons-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { FormField } from './form-field-editor';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { apiClient } from '@/lib/api/client';
+
+interface ImportWordContentProps {
+  onImportSuccess: (formId: string) => void;
+}
+
+type ProcessStatus = {
+  step: string;
+  message: string;
+  details?: string;
+};
+
+// Define type for SSE events
+interface MessageEvent {
+  data: string;
+  type: string;
+  lastEventId: string;
+}
+
+type ImportFormData = {
+  title: string;
+  description: string;
+  active: boolean;
+  fields: FormField[];
+};
+
+export function ImportWordContent({ onImportSuccess }: ImportWordContentProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [processStatuses, setProcessStatuses] = useState<ProcessStatus[]>([]);
+  const [currentStatus, setCurrentStatus] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [formData, setFormData] = useState<ImportFormData>({
+    title: '',
+    description: '',
+    active: true,
+    fields: []
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentTab, setCurrentTab] = useState<string>('upload');
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  // Clean up EventSource on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Add this function to handle saving the form
+  const handleSaveForm = async () => {
+    if (!formData.title.trim()) {
+      toast.error('Title is required');
+      return;
+    }
+    
+    setIsSaving(true);
+    
+    try {
+      // First, create the form using API route
+      const { form: formRecord } = await apiClient.forms.create({
+        title: formData.title,
+        description: formData.description || null,
+        active: formData.active,
+      });
+      
+      // Then create the form fields
+      const fieldsPromises = formData.fields.map((field, index) => 
+        apiClient.fields.create(formRecord.id, {
+          type: field.type,
+          label: field.label,
+          placeholder: field.placeholder || '',
+          required: !!field.required,
+          options: field.options && field.options.length > 0 ? field.options : null,
+          conditional_logic: field.conditional_logic || null,
+          position: index,
+        })
+      );
+      
+      await Promise.all(fieldsPromises);
+      
+      toast.success('Form created successfully!');
+      onImportSuccess(formRecord.id);
+      
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save form');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const droppedFile = e.dataTransfer.files[0];
+    handleFile(droppedFile);
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      handleFile(selectedFile);
+    }
+  };
+
+  const handleFile = (selectedFile: File) => {
+    // Reset states when a new file is selected
+    setError(null);
+    setProcessStatuses([]);
+    setCurrentStatus('');
+    setShowSaveForm(false);
+    setFormData({
+      title: '',
+      description: '',
+      active: true,
+      fields: []
+    });
+    
+    // Check if file is a Word document
+    if (!selectedFile.name.endsWith('.docx') && !selectedFile.name.endsWith('.doc')) {
+      toast.error('Please upload a Word document (.doc or .docx)');
+      return;
+    }
+
+    setFile(selectedFile);
+    toast.success(`File "${selectedFile.name}" selected`);
+  };
+
+  const handleImport = async () => {
+    if (!file) {
+      toast.error('Please select a file first');
+      return;
+    }
+
+    // Reset states
+    setIsLoading(true);
+    setError(null);
+    setProcessStatuses([]);
+    setCurrentStatus('Preparing to import...');
+    setShowSaveForm(false);
+
+    try {
+      // Close any existing EventSource
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+
+      // Add initial status
+      addStatus('init', 'Initializing import process');
+
+      // Create a unique session ID for this import
+      const sessionId = `import-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Create FormData and append the file
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('sessionId', sessionId);
+
+      // Start the upload
+      const uploadResponse = await fetch('/api/form-builder/import-word', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      // Set up SSE connection to track progress
+      const eventSource = new EventSource(`/api/form-builder/import-word?sessionId=${sessionId}`);
+      eventSourceRef.current = eventSource;
+
+      eventSource.onmessage = (event: MessageEvent) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'status') {
+            setCurrentStatus(data.message);
+            addStatus('status', data.message, data.details);
+          } else if (data.type === 'success') {
+            setCurrentStatus('Import completed successfully!');
+            addStatus('success', 'Import completed successfully!');
+            
+            // Set the form data for saving
+            setFormData({
+              title: data.form?.title || 'Imported Form',
+              description: data.form?.description || '',
+              active: true,
+              fields: data.fields || []
+            });
+            
+            setShowSaveForm(true);
+            setCurrentTab('save');
+            setIsLoading(false);
+            
+            // Close the EventSource
+            eventSource.close();
+            eventSourceRef.current = null;
+          } else if (data.type === 'error') {
+            setError(data.message || 'An error occurred during import');
+            addStatus('error', data.message || 'An error occurred during import');
+            setIsLoading(false);
+            
+            // Close the EventSource
+            eventSource.close();
+            eventSourceRef.current = null;
+          }
+        } catch (parseError) {
+          console.error('Error parsing SSE data:', parseError);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('SSE Error:', error);
+        setError('Connection error occurred during import');
+        addStatus('error', 'Connection error occurred during import');
+        setIsLoading(false);
+        eventSource.close();
+        eventSourceRef.current = null;
+      };
+
+    } catch (error: any) {
+      setError(error.message || 'Failed to start import process');
+      addStatus('error', error.message || 'Failed to start import process');
+      setIsLoading(false);
+    }
+  };
+
+  const addStatus = (step: string, message: string, details?: string) => {
+    setProcessStatuses(prevStatuses => [
+      ...prevStatuses,
+      { step, message, details }
+    ]);
+  };
+
+  const renderStatusIcon = (step: string) => {
+    switch (step) {
+      case 'init':
+      case 'status':
+        return isLoading ? (
+          <IconLoader2 className="h-5 w-5 animate-spin text-primary" />
+        ) : (
+          <div className="h-5 w-5 rounded-full bg-primary/20" />
+        );
+      case 'success':
+        return <IconCheck className="h-5 w-5 text-green-500" />;
+      case 'error':
+        return <IconX className="h-5 w-5 text-red-500" />;
+      default:
+        return <div className="h-5 w-5 rounded-full bg-muted" />;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="upload">Upload</TabsTrigger>
+          <TabsTrigger value="save" disabled={!showSaveForm}>Save Form</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="upload" className="pt-4">
+          {!isLoading && !error && !showSaveForm && (
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center ${
+                isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <div className="mx-auto flex flex-col items-center">
+                <IconFileUpload className="h-10 w-10 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold">Drag & Drop or Click to Upload</h3>
+                <p className="text-sm text-muted-foreground mt-1 mb-4">
+                  Support for .doc and .docx files
+                </p>
+                
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".doc,.docx"
+                  className="hidden"
+                  onChange={handleFileInput}
+                />
+                
+                <Button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="secondary"
+                >
+                  Browse Files
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {file && !isLoading && !error && !showSaveForm && (
+            <div className="mt-4 flex items-center justify-between p-3 bg-muted rounded-md">
+              <div className="flex items-center">
+                <IconFileUpload className="h-5 w-5 text-primary mr-2" />
+                <span className="text-sm font-medium truncate max-w-[200px]">
+                  {file.name}
+                </span>
+              </div>
+              <Button
+                type="button"
+                onClick={handleImport}
+                disabled={isLoading}
+              >
+                Process File
+              </Button>
+            </div>
+          )}
+
+          {isLoading && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <IconLoader2 className="h-5 w-5 animate-spin text-primary" />
+                <div>
+                  <p className="font-medium">{currentStatus}</p>
+                </div>
+              </div>
+              
+              <div className="border rounded-md p-4 space-y-3">
+                {processStatuses.map((status, index) => (
+                  <div key={index} className="flex items-start space-x-3">
+                    <div className="mt-0.5">{renderStatusIcon(status.step)}</div>
+                    <div>
+                      <p className={`font-medium ${status.step === 'error' ? 'text-red-500' : ''}`}>
+                        {status.message}
+                      </p>
+                      {status.details && (
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          {status.details}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 text-red-800 rounded-md flex items-start space-x-3">
+              <IconAlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium">Error</p>
+                <p className="text-sm mt-1">{error}</p>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="save" className="space-y-4 pt-4">
+          {showSaveForm && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Form Title</Label>
+                <Input 
+                  id="title" 
+                  value={formData.title}
+                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  placeholder="Enter form title" 
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="description">Description (optional)</Label>
+                <Textarea 
+                  id="description" 
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  placeholder="Enter form description" 
+                  rows={3}
+                />
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="active"
+                  checked={formData.active}
+                  onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+                />
+                <Label htmlFor="active">Make form active immediately</Label>
+              </div>
+              
+              <div className="border rounded-md p-4 mt-4">
+                <h3 className="font-medium mb-2">Form Fields Preview</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  {formData.fields.length} fields extracted from document
+                </p>
+                
+                <div className="max-h-[200px] overflow-y-auto space-y-2">
+                  {formData.fields.map((field, index) => (
+                    <div key={field.id} className="flex justify-between p-2 rounded bg-muted text-sm">
+                      <div className="truncate max-w-[200px]">
+                        <span className="font-medium">{field.label}</span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        <span className="bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded">
+                          {field.type}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button 
+                  onClick={handleSaveForm}
+                  disabled={isSaving || !formData.title.trim()}
+                  className="flex items-center gap-2"
+                >
+                  {isSaving ? (
+                    <>
+                      <IconLoader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Form'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+} 

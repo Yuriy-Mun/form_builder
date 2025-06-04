@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
         title,
         description,
         active,
+        status: 'published',
         created_by: user.id,
       })
       .select()
