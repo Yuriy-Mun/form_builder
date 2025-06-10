@@ -1,10 +1,8 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import EditDashboardClient from './edit-dashboard-client';
+import { SetPageTitle } from '@/lib/page-context';
 
 
 export default async function EditDashboardPage({ 
@@ -19,20 +17,14 @@ export default async function EditDashboardPage({
   }
   
   return (
+    <>
+    <SetPageTitle title="Edit Dashboard" description="Edit a dashboard from your form submissions" />
     <div className="container py-6 space-y-6">
-      <div className="flex items-center gap-2">
-        <Link href={`/admin/dashboards/${id}`}>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Edit Dashboard</h1>
-      </div>
-      
       <Suspense fallback={<FormSkeleton />}>
         <EditDashboardClient dashboardId={id} />
       </Suspense>
     </div>
+    </>
   );
 }
 

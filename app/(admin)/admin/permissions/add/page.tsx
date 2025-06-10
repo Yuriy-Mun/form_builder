@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import type { PermissionFormData } from '@/lib/types'
+import { SetPageTitle } from '@/lib/page-context'
 
 export default function AddPermissionPage() {
   const router = useRouter()
@@ -64,23 +64,9 @@ export default function AddPermissionPage() {
   }
 
   return (
+    <>
+    <SetPageTitle title="Add Permission" description="Add a new permission to the system" />
     <div className="container py-6 max-w-4xl">
-      <div className="flex items-center mb-8">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => router.back()}
-          className="mr-3"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Добавление разрешения</h1>
-          <p className="text-muted-foreground">
-            Создайте новое разрешение для системы
-          </p>
-        </div>
-      </div>
       
       <Card>
         <CardContent className="pt-6">
@@ -136,5 +122,6 @@ export default function AddPermissionPage() {
         </CardContent>
       </Card>
     </div>
+    </>
   )
 } 

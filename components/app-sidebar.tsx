@@ -2,17 +2,14 @@
 
 import * as React from "react"
 import {
-  IconDashboard,
   IconHelp,
   IconInnerShadowTop,
   IconLock,
-  IconPlus,
-  IconSearch,
-  IconSettings,
-  IconUserShield,
+  IconPlus, IconUserShield,
   IconClipboardList,
   IconChartBar,
   IconUsers,
+  IconHome
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -22,11 +19,14 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import Link from "next/link"
 
 const data = {
   user: {
@@ -36,9 +36,9 @@ const data = {
   },
   navMain: [
     {
-      title: "Dashboard",
+      title: "Home",
       url: "/admin",
-      icon: IconDashboard,
+      icon: IconHome,
     },
     {
       title: "Forms",
@@ -54,6 +54,9 @@ const data = {
       actionUrl: "/admin/dashboards/add",
       actionIcon: IconPlus,
     },
+
+  ],
+  navSecondary: [
     {
       title: "Roles",
       url: "/admin/roles",
@@ -72,24 +75,7 @@ const data = {
       icon: IconLock,
       actionUrl: "/admin/permissions/add",
       actionIcon: IconPlus,
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
-    },
+    }
   ],
 }
 
@@ -103,18 +89,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="#">
+              <Link href="/admin">
                 <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Acme Inc.</span>
-              </a>
+                <span className="text-base font-semibold">FormBuilder</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        
+
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavSecondary items={data.navSecondary} className="mt-auto pb-0" />
+        <SidebarGroup className="pt-0">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link href="#">
+                    <IconHelp />
+                    <span>Get Help</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

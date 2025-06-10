@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import type { Permission } from "@/lib/types"
+import { SetPageTitle, UseHeaderComponent } from "@/lib/page-context"
 
 export default function PermissionsPage() {
   const router = useRouter()
@@ -89,22 +90,17 @@ export default function PermissionsPage() {
   }
   
   return (
+    <>
+    <SetPageTitle title="Permissions" description="Manage system permissions" />
+    <UseHeaderComponent id="add-permission-button">
+      <Button 
+        className="flex items-center gap-1" 
+        onClick={() => router.push('/admin/permissions/add')}
+      >
+        <Plus className="h-4 w-4" /> Добавить разрешение
+      </Button>
+    </UseHeaderComponent>
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Разрешения</h1>
-          <p className="text-muted-foreground mt-2">
-            Управление системными разрешениями
-          </p>
-        </div>
-        <Button 
-          className="flex items-center gap-1" 
-          onClick={() => router.push('/admin/permissions/add')}
-        >
-          <Plus className="h-4 w-4" /> Добавить разрешение
-        </Button>
-      </div>
-      <div className="border-t"></div>
       
       <div className="rounded-md border">
         <Table>
@@ -184,5 +180,6 @@ export default function PermissionsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </>
   )
 } 

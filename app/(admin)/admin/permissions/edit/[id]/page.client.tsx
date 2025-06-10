@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { getSupabaseClient } from '@/lib/supabase/client'
-import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import type { PermissionFormData } from '@/lib/types'
+import { SetPageTitle } from '@/lib/page-context'
 
 // Клиентский компонент для редактирования разрешений
 export default function EditPermissionClient({ id }: { id: string }) {
@@ -96,23 +96,9 @@ export default function EditPermissionClient({ id }: { id: string }) {
   }
 
   return (
+    <>
+    <SetPageTitle title="Edit Permission" description="Edit a permission in the system" />
     <div className="container py-6 max-w-4xl">
-      <div className="flex items-center mb-8">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => router.back()}
-          className="mr-3"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Редактирование разрешения</h1>
-          <p className="text-muted-foreground">
-            Измените данные существующего разрешения
-          </p>
-        </div>
-      </div>
       
       <Card>
         <CardContent className="pt-6">
@@ -172,5 +158,6 @@ export default function EditPermissionClient({ id }: { id: string }) {
         </CardContent>
       </Card>
     </div>
+    </>
   )
 } 

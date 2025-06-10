@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import type { Role } from "@/lib/types"
+import { SetPageTitle, UseHeaderComponent } from "@/lib/page-context"
 
 export default function RolesPage() {
   const router = useRouter()
@@ -90,22 +91,17 @@ export default function RolesPage() {
   }
   
   return (
+    <>
+    <SetPageTitle title="Roles" description="Manage roles and permissions" />
+    <UseHeaderComponent id="add-role-button">
+      <Button 
+        className="flex items-center gap-1" 
+        onClick={() => router.push('/admin/roles/add')}
+      >
+        <Plus className="h-4 w-4" /> Добавить роль
+      </Button>
+    </UseHeaderComponent>
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Роли</h1>
-          <p className="text-muted-foreground mt-2">
-            Управление ролями пользователей и их разрешениями
-          </p>
-        </div>
-        <Button 
-          className="flex items-center gap-1" 
-          onClick={() => router.push('/admin/roles/add')}
-        >
-          <Plus className="h-4 w-4" /> Добавить роль
-        </Button>
-      </div>
-      <div className="border-t"></div>
       
       <div className="rounded-md border">
         <Table>
@@ -197,5 +193,6 @@ export default function RolesPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </>
   )
 } 

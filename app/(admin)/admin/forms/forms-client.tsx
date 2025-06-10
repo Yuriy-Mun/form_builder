@@ -43,6 +43,7 @@ import {
   DrawerDescription,
 } from "@/components/ui/drawer";
 import Link from 'next/link';
+import { SetPageTitle, UseHeaderComponent } from '@/lib/page-context';
 
 interface Form {
   id: string;
@@ -59,6 +60,7 @@ export default function FormsClient() {
   const [openSharePopover, setOpenSharePopover] = useState<string | null>(null);
   const [openShareDrawer, setOpenShareDrawer] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [isCreateLoading, setIsCreateLoading] = useState(false);
   const router = useRouter();
 
   // Use API hooks instead of direct Supabase calls
@@ -87,6 +89,7 @@ export default function FormsClient() {
   };
 
   const handleCreateNewForm = async () => {
+    setIsCreateLoading(true);
     try {
       const { form: newForm } = await createForm({
         title: 'Untitled',
@@ -101,6 +104,8 @@ export default function FormsClient() {
     } catch (error) {
       console.error('Error creating form:', error);
       toast.error('Не удалось создать форму. Попробуйте еще раз.');
+    } finally {
+      setIsCreateLoading(false);
     }
   };
 
@@ -290,27 +295,27 @@ export default function FormsClient() {
 
   return (
     <>
+      <SetPageTitle title="Forms" description="Create and manage forms" />
+      <UseHeaderComponent id="add-news-button">
+        <button 
+          onClick={() => setIsImportDialogOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-800 rounded-md border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+        >
+          <FileText className="h-4 w-4" />
+          <span>Import from Word</span>
+        </button>
+      </UseHeaderComponent>
+      <UseHeaderComponent id="create-form-button">
+        <button
+          onClick={handleCreateNewForm}
+          disabled={isCreateLoading}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-all shadow-sm"
+        >
+          <Plus className="h-4 w-4" />
+          <span>{isCreateLoading ? 'Creating...' : 'Create Form'}</span>
+        </button>
+      </UseHeaderComponent>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">Forms</h1>
-          <div className="flex gap-3">
-            <button 
-              onClick={() => setIsImportDialogOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-800 rounded-md border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
-            >
-              <FileText className="h-4 w-4" />
-              <span>Import from Word</span>
-            </button>
-            <button
-              onClick={handleCreateNewForm}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-all shadow-sm"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Create Form</span>
-            </button>
-          </div>
-        </div>
-
         <div className="relative">
           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
             <Search className="h-4 w-4 text-gray-400" />

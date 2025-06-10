@@ -1,27 +1,19 @@
-import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import DashboardForm from '../dashboard-form';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import { SetPageTitle } from '@/lib/page-context';
 
 export default function AddDashboardPage() {
   return (
-    <div className="container py-6 space-y-6">
-      <div className="flex items-center gap-2">
-        <Link href="/admin/dashboards">
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Create Dashboard</h1>
+    <>
+      <SetPageTitle title="Create Dashboard" description="Create a new dashboard from your form submissions" />
+      <div className="container py-6 space-y-6">
+
+        <Suspense fallback={<FormSkeleton />}>
+          <DashboardForm />
+        </Suspense>
       </div>
-      
-      <Suspense fallback={<FormSkeleton />}>
-        <DashboardForm />
-      </Suspense>
-    </div>
+    </>
   );
 }
 

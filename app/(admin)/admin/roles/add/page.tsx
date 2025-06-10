@@ -7,11 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { getSupabaseClient } from '@/lib/supabase/client'
-import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import type { Permission, RoleFormData } from '@/lib/types'
+import { SetPageTitle } from '@/lib/page-context'
 
 export default function AddRolePage() {
   const router = useRouter()
@@ -127,23 +127,9 @@ export default function AddRolePage() {
   }
 
   return (
+    <>
+    <SetPageTitle title="Add Role" description="Add a new role and assign permissions" />
     <div className="container py-6 max-w-4xl">
-      <div className="flex items-center mb-8">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => router.back()}
-          className="mr-3"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Добавление роли</h1>
-          <p className="text-muted-foreground">
-            Создайте новую роль и назначьте ей разрешения
-          </p>
-        </div>
-      </div>
       
       <Card>
         <CardContent className="pt-6">
@@ -238,5 +224,6 @@ export default function AddRolePage() {
         </CardContent>
       </Card>
     </div>
+    </>
   )
 } 

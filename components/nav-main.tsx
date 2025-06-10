@@ -1,8 +1,7 @@
 "use client"
 
-import { IconCirclePlusFilled, IconMail, type Icon } from "@tabler/icons-react"
+import { IconCirclePlusFilled, type Icon } from "@tabler/icons-react"
 
-import { Button } from "@/components/ui/button"
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -12,8 +11,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-import type { LucideIcon } from "lucide-react"
-import React, { useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { QuickCreateDialog } from "@/components/quick-create-dialog"
 
@@ -44,43 +42,35 @@ export function NavMain({
                 <IconCirclePlusFilled />
                 <span>Quick Create</span>
               </SidebarMenuButton>
-            <Button
-              size="icon"
-              className="size-8 group-data-[collapsible=icon]:opacity-0"
-              variant="outline"
-            >
-              <IconMail />
-              <span className="sr-only">Inbox</span>
-            </Button>
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title} asChild>
-                <Link href={item.url} prefetch={false}>
-                  {item.icon && <item.icon />}
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-              {item.actionUrl && (
-                <SidebarMenuAction asChild>
-                  <Link href={item.actionUrl} prefetch={false}>
-                    {item.actionIcon && <item.actionIcon aria-hidden="true" />}
-                    <span className="sr-only">Add {item.title}</span>
-                  </Link>
-                </SidebarMenuAction>
-              )}
             </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
-    
-    <QuickCreateDialog 
-      open={showQuickCreate} 
-      onClose={() => setShowQuickCreate(false)} 
-    />
-  </>
+          </SidebarMenu>
+          <SidebarMenu>
+            {items.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton tooltip={item.title} asChild>
+                  <Link href={item.url} prefetch={false}>
+                    {item.icon && <item.icon />}
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+                {item.actionUrl && (
+                  <SidebarMenuAction asChild>
+                    <Link href={item.actionUrl} prefetch={false}>
+                      {item.actionIcon && <item.actionIcon aria-hidden="true" />}
+                      <span className="sr-only">Add {item.title}</span>
+                    </Link>
+                  </SidebarMenuAction>
+                )}
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      <QuickCreateDialog
+        open={showQuickCreate}
+        onClose={() => setShowQuickCreate(false)}
+      />
+    </>
   )
 }

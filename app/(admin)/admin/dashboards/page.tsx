@@ -4,30 +4,28 @@ import { Plus } from 'lucide-react';
 import DashboardList from './dashboard-list';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SetPageTitle, UseHeaderComponent } from '@/lib/page-context';
 
 
 export default function DashboardsPage() {
   return (
-    <div className="container py-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboards</h1>
-          <p className="text-muted-foreground">
-            Create and manage dashboards from your form submissions
-          </p>
-        </div>
-        <Link href="/admin/dashboards/add">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Dashboard
-          </Button>
-        </Link>
+    <>
+      <SetPageTitle title="Dashboards" description="Create and manage dashboards from your form submissions" />
+      <UseHeaderComponent id="add-news-button">
+      <Link href="/admin/dashboards/add">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Dashboard
+            </Button>
+          </Link>
+      </UseHeaderComponent>
+      <div className="container py-6 space-y-6">
+        
+        <Suspense fallback={<DashboardsSkeleton />}>
+          <DashboardList />
+        </Suspense>
       </div>
-      
-      <Suspense fallback={<DashboardsSkeleton />}>
-        <DashboardList />
-      </Suspense>
-    </div>
+    </>
   );
 }
 

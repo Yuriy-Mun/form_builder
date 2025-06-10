@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useDebounce } from 'use-debounce'
-import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, Shield, Ban, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Shield, Ban, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useUsers, useDeleteUser, useUpdateUser, type User, type UseUsersParams } from '@/hooks/useUsers'
+import { useUsers, useUpdateUser, type User, type UseUsersParams } from '@/hooks/useUsers'
 import { useRoles } from '@/hooks/useApi'
 import { useToast } from '@/hooks/use-toast'
 import { CreateUserDialog } from '@/components/admin/users/CreateUserDialog'
@@ -33,6 +33,7 @@ import { DeleteUserDialog } from '@/components/admin/users/DeleteUserDialog'
 import { UserPermissionsDialog } from '@/components/admin/users/UserPermissionsDialog'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
+import { SetPageTitle, UseHeaderComponent } from '@/lib/page-context'
 
 export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -155,20 +156,15 @@ export default function UsersPage() {
   }
 
   return (
+    <>
+    <SetPageTitle title="Users" description="Manage system users" />
+    <UseHeaderComponent id="add-user-button">
+      <Button onClick={() => setCreateDialogOpen(true)}>
+        <Plus className="mr-2 h-4 w-4" />
+        Добавить пользователя
+      </Button>
+    </UseHeaderComponent>
     <div className="py-6 space-y-6">
-      {/* Заголовок */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Управление пользователями</h1>
-          <p className="text-muted-foreground">
-            Управляйте пользователями системы, их ролями и разрешениями
-          </p>
-        </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Добавить пользователя
-        </Button>
-      </div>
 
       {/* Статистика */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -444,5 +440,6 @@ export default function UsersPage() {
         </>
       )}
     </div>
+    </>
   )
 } 

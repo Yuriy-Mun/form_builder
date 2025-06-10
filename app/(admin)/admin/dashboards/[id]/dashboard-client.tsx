@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
@@ -9,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { BarChart, ChevronLeft, Edit, GripVertical, LineChart, PieChart, Plus, Table, Loader2 } from 'lucide-react';
+import { BarChart, Edit, GripVertical, LineChart, PieChart, Plus, Table, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveWidgetModal } from '@/components/ui/responsive-widget-modal';
@@ -18,6 +17,7 @@ import DataTable from './widgets/data-table';
 import BarChartWidget from './widgets/bar-chart';
 import LineChartWidget from './widgets/line-chart';
 import PieChartWidget from './widgets/pie-chart';
+import { SetPageTitle, UseHeaderComponent } from '@/lib/page-context';
 
 interface Form {
   id: string;
@@ -78,12 +78,12 @@ export default function DashboardClient({
   const [isEditWidgetOpen, setIsEditWidgetOpen] = useState(false);
   const [activeWidget, setActiveWidget] = useState<Widget | null>(null);
   const router = useRouter();
-  
+
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-  
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -101,7 +101,7 @@ export default function DashboardClient({
         .select('*, forms:form_id(title)')
         .eq('id', dashboardId)
         .single();
-      
+
       if (error) throw error;
       return data as Dashboard;
     }
@@ -116,7 +116,7 @@ export default function DashboardClient({
         .select('*')
         .eq('dashboard_id', dashboardId)
         .order('position', { ascending: true });
-      
+
       if (error) throw error;
       return data as Widget[];
     },
@@ -131,16 +131,16 @@ export default function DashboardClient({
         .from('forms')
         .select('id, title')
         .order('title', { ascending: true });
-      
+
       if (error) throw error;
       return data as Form[];
     }
   });
-  
+
   // State for tracking loading during form submissions
   const [isAddSubmitting, setIsAddSubmitting] = useState(false);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
-  
+
   // Wrapped submission functions that handle loading states
   async function handleAddWidget(widget: Omit<Widget, 'id' | 'dashboard_id' | 'position'>) {
     setIsAddSubmitting(true);
@@ -150,7 +150,7 @@ export default function DashboardClient({
       setIsAddSubmitting(false);
     }
   }
-  
+
   async function handleUpdateWidget(widget: Widget) {
     setIsEditSubmitting(true);
     try {
@@ -159,13 +159,13 @@ export default function DashboardClient({
       setIsEditSubmitting(false);
     }
   }
-  
+
   async function addWidget(widget: Omit<Widget, 'id' | 'dashboard_id' | 'position'>) {
     try {
-      const position = widgets.length > 0 
-        ? Math.max(...widgets.map(w => w.position)) + 1 
+      const position = widgets.length > 0
+        ? Math.max(...widgets.map(w => w.position)) + 1
         : 0;
-      
+
       const { error } = await supabase
         .from('dashboard_widgets')
         .insert({
@@ -175,9 +175,9 @@ export default function DashboardClient({
         })
         .select()
         .single();
-        
+
       if (error) throw error;
-      
+
       toast.success('Widget added');
       setIsAddWidgetOpen(false);
       refetchWidgets();
@@ -186,7 +186,7 @@ export default function DashboardClient({
       toast.error('Failed to add widget');
     }
   }
-  
+
   async function updateWidget(widget: Widget) {
     try {
       const { error } = await supabase
@@ -198,9 +198,9 @@ export default function DashboardClient({
           size: widget.size
         })
         .eq('id', widget.id);
-        
+
       if (error) throw error;
-      
+
       toast.success('Widget updated');
       setIsEditWidgetOpen(false);
       setActiveWidget(null);
@@ -210,16 +210,16 @@ export default function DashboardClient({
       toast.error('Failed to update widget');
     }
   }
-  
+
   async function deleteWidget(id: string) {
     try {
       const { error } = await supabase
         .from('dashboard_widgets')
         .delete()
         .eq('id', id);
-        
+
       if (error) throw error;
-      
+
       toast.success('Widget deleted');
       refetchWidgets();
     } catch (error) {
@@ -227,40 +227,40 @@ export default function DashboardClient({
       toast.error('Failed to delete widget');
     }
   }
-  
+
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    
+
     if (!active || !over || active.id === over.id) return;
-    
+
     const oldIndex = widgets.findIndex(w => w.id === active.id);
     const newIndex = widgets.findIndex(w => w.id === over.id);
-    
+
     if (oldIndex === -1 || newIndex === -1) return;
-    
+
     const newWidgets = [...widgets];
     const [movedWidget] = newWidgets.splice(oldIndex, 1);
     newWidgets.splice(newIndex, 0, movedWidget);
-    
+
     // Update positions
     const updatedWidgets = newWidgets.map((widget, index) => ({
       ...widget,
       position: index
     }));
-    
+
     // Save the new positions to the database
     try {
       const updates = updatedWidgets.map(widget => ({
         id: widget.id,
         position: widget.position
       }));
-      
+
       const { error } = await supabase
         .from('dashboard_widgets')
         .upsert(updates);
-        
+
       if (error) throw error;
-      
+
       // Refetch widgets to update the UI
       refetchWidgets();
     } catch (error) {
@@ -268,7 +268,7 @@ export default function DashboardClient({
       toast.error('Failed to update widget positions');
     }
   }
-  
+
   function renderWidget(widget: Widget) {
     switch (widget.type) {
       case 'table':
@@ -298,8 +298,8 @@ export default function DashboardClient({
     return (
       <div className="container py-6">
         <h1 className="text-xl">Dashboard not found</h1>
-        <Button 
-          variant="link" 
+        <Button
+          variant="link"
           onClick={() => router.push('/admin/dashboards')}
           className="px-0"
         >
@@ -308,7 +308,7 @@ export default function DashboardClient({
       </div>
     );
   }
-  
+
   // Create the add widget button
   const addWidgetButton = (
     <Button>
@@ -316,7 +316,7 @@ export default function DashboardClient({
       Add Widget
     </Button>
   );
-  
+
   // Footer components for modals
   const addWidgetFooter = (
     <div className="flex justify-end gap-2">
@@ -327,7 +327,7 @@ export default function DashboardClient({
       >
         Cancel
       </Button>
-      <Button 
+      <Button
         type="submit"
         form="add-widget-form"
         disabled={isAddSubmitting}
@@ -337,7 +337,7 @@ export default function DashboardClient({
       </Button>
     </div>
   );
-  
+
   const editWidgetFooter = (
     <div className="flex justify-end gap-2">
       <Button
@@ -350,7 +350,7 @@ export default function DashboardClient({
       >
         Cancel
       </Button>
-      <Button 
+      <Button
         type="submit"
         form="edit-widget-form"
         disabled={isEditSubmitting}
@@ -360,122 +360,106 @@ export default function DashboardClient({
       </Button>
     </div>
   );
-  
+
   return (
-    <div className="container py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Link href="/admin/dashboards">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{dashboard.name}</h1>
-            {dashboard.description && (
-              <p className="text-muted-foreground">{dashboard.description}</p>
-            )}
-            {dashboard.forms && (
-              <div className="text-sm text-muted-foreground mt-1">
-                Form: {dashboard.forms.title}
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <ResponsiveWidgetModal
-            title="Add Widget"
-            isOpen={isAddWidgetOpen}
-            onOpenChange={setIsAddWidgetOpen}
-            trigger={addWidgetButton}
-            footer={addWidgetFooter}
-          >
-            <WidgetForm 
-              dashboard={dashboard}
-              onSubmit={handleAddWidget}
-              onCancel={() => setIsAddWidgetOpen(false)}
-              formId="add-widget-form"
-            />
-          </ResponsiveWidgetModal>
-          
-          <Button 
-            variant="outline"
-            onClick={() => router.push(`/admin/dashboards/edit/${dashboardId}`)}
-          >
-            <Edit className="mr-2 h-4 w-4" />
-            Edit Dashboard
-          </Button>
-        </div>
-      </div>
-      
-      {widgets.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center animate-in fade-in-50">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-            <BarChart className="h-10 w-10 text-primary" />
-          </div>
-          <h2 className="mt-6 text-xl font-semibold">No widgets yet</h2>
-          <p className="mb-8 mt-2 text-center text-sm text-muted-foreground max-w-sm">
-            Add your first widget to visualize form data
-          </p>
-          <Button onClick={() => setIsAddWidgetOpen(true)}>Add Widget</Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-12">
-          <DndContext 
-            sensors={sensors} 
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={widgets.map(w => w.id)} strategy={verticalListSortingStrategy}>
-              {widgets.map(widget => (
-                <SortableWidget
-                  key={widget.id}
-                  widget={widget}
-                  forms={forms}
-                  onEdit={(widget) => {
-                    setActiveWidget(widget);
-                    setIsEditWidgetOpen(true);
-                  }}
-                  onDelete={deleteWidget}
-                >
-                  {renderWidget(widget)}
-                </SortableWidget>
-              ))}
-            </SortableContext>
-          </DndContext>
-        </div>
-      )}
-      
-      <ResponsiveWidgetModal
-        title="Edit Widget"
-        isOpen={isEditWidgetOpen}
-        onOpenChange={setIsEditWidgetOpen}
-        footer={editWidgetFooter}
-      >
-        {activeWidget && (
-          <WidgetForm 
-            widget={activeWidget}
+    <>
+      <SetPageTitle title={`${dashboard.name} - Dashboard`} description="View and manage dashboard widgets" />
+      <UseHeaderComponent id="add-dashboard-widget-button">
+        <ResponsiveWidgetModal
+          title="Add Widget"
+          isOpen={isAddWidgetOpen}
+          onOpenChange={setIsAddWidgetOpen}
+          trigger={addWidgetButton}
+          footer={addWidgetFooter}
+        >
+          <WidgetForm
             dashboard={dashboard}
-            onSubmit={handleUpdateWidget}
-            onCancel={() => {
-              setIsEditWidgetOpen(false);
-              setActiveWidget(null);
-            }}
-            formId="edit-widget-form"
+            onSubmit={handleAddWidget}
+            onCancel={() => setIsAddWidgetOpen(false)}
+            formId="add-widget-form"
           />
+        </ResponsiveWidgetModal>
+      </UseHeaderComponent>
+      <UseHeaderComponent id="edit-dashboard-button">
+        <Button
+          variant="outline"
+          onClick={() => router.push(`/admin/dashboards/edit/${dashboardId}`)}
+        >
+          <Edit className="mr-2 h-4 w-4" />
+          Edit Dashboard
+        </Button>
+      </UseHeaderComponent>
+      <div className="container py-6 space-y-6">
+        {widgets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center animate-in fade-in-50">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+              <BarChart className="h-10 w-10 text-primary" />
+            </div>
+            <h2 className="mt-6 text-xl font-semibold">No widgets yet</h2>
+            <p className="mb-8 mt-2 text-center text-sm text-muted-foreground max-w-sm">
+              Add your first widget to visualize form data
+            </p>
+            <Button onClick={() => setIsAddWidgetOpen(true)}>Add Widget</Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-12">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={widgets.map(w => w.id)} strategy={verticalListSortingStrategy}>
+                {widgets.map(widget => (
+                  <SortableWidget
+                    key={widget.id}
+                    widget={widget}
+                    forms={forms}
+                    onEdit={(widget) => {
+                      setActiveWidget(widget);
+                      setIsEditWidgetOpen(true);
+                    }}
+                    onDelete={deleteWidget}
+                  >
+                    {renderWidget(widget)}
+                  </SortableWidget>
+                ))}
+              </SortableContext>
+            </DndContext>
+          </div>
         )}
-      </ResponsiveWidgetModal>
-    </div>
+
+        <ResponsiveWidgetModal
+          title="Edit Widget"
+          isOpen={isEditWidgetOpen}
+          onOpenChange={setIsEditWidgetOpen}
+          footer={editWidgetFooter}
+        >
+          {activeWidget && (
+            <WidgetForm
+              widget={activeWidget}
+              dashboard={dashboard}
+              onSubmit={handleUpdateWidget}
+              onCancel={() => {
+                setIsEditWidgetOpen(false);
+                setActiveWidget(null);
+              }}
+              formId="edit-widget-form"
+            />
+          )}
+        </ResponsiveWidgetModal>
+      </div>
+
+    </>
   );
 }
 
-function SortableWidget({ 
+function SortableWidget({
   widget,
   children,
   onEdit,
-  onDelete 
-}: { 
-  widget: Widget; 
+  onDelete
+}: {
+  widget: Widget;
   children: React.ReactNode;
   forms: Form[];
   onEdit: (widget: Widget) => void;
@@ -489,21 +473,21 @@ function SortableWidget({
     transition,
     isDragging
   } = useSortable({ id: widget.id });
-  
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
-  
+
   let colSpan = 'col-span-1';
-  
+
   if (widget.size === 'medium') {
     colSpan = 'col-span-1 md:col-span-2';
   } else if (widget.size === 'large') {
     colSpan = 'col-span-1 md:col-span-2 lg:col-span-3';
   }
-  
+
   return (
     <div
       ref={setNodeRef}
@@ -545,16 +529,16 @@ function SortableWidget({
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => onEdit(widget)}
           >
             Edit
           </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             className="text-destructive hover:text-destructive"
             onClick={() => {
               if (confirm('Are you sure you want to delete this widget?')) {
@@ -566,7 +550,7 @@ function SortableWidget({
           </Button>
         </div>
       </div>
-      
+
       <div className="p-4">
         {children}
       </div>
