@@ -1,185 +1,390 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { 
-  IconCircleCheck,
-  IconClock,
-  IconArrowRight,
-  IconBook,
-  IconRocket,
-  IconSparkles,
   IconForms,
   IconUsers,
   IconChartBar,
   IconSettings,
-  IconPlayerPlay,
-  IconStar
+  IconPlus,
+  IconEye,
+  IconTrendingUp,
+  IconActivity
 } from "@tabler/icons-react"
 import Link from "next/link"
+import { createClient, getAuthenticatedUser } from '@/lib/supabase/server'
 
-
-
-
-// Hero секция с объяснением платформы
-function WelcomeHero() {
-  return (
-    <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 p-8 mb-8">
-      <div className="relative z-10">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <IconRocket className="h-8 w-8 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold">Добро пожаловать в FormBuilder</h1>
-            <p className="text-lg text-muted-foreground">Мощная платформа для создания форм и сбора данных</p>
-          </div>
-        </div>
-        
-        <div className="grid md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Что это за платформа?</h3>
-            <p className="text-muted-foreground mb-4">
-              FormBuilder позволяет создавать интерактивные формы, управлять пользователями 
-              и анализировать собранные данные через удобные дашборды.
-            </p>
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Начните прямо сейчас</h3>
-            <p className="text-muted-foreground mb-4">
-              Следуйте простым шагам ниже, чтобы настроить систему и создать первую форму 
-              за несколько минут.
-            </p>
-          </div>
-        </div>
-
-        <Button asChild size="lg" className="bg-primary hover:bg-primary/90">
-          <Link href="/admin/forms/add" className="flex items-center gap-2">
-            <IconPlayerPlay className="h-4 w-4" />
-            Создать первую форму
-          </Link>
-        </Button>
-      </div>
-      
-      {/* Декоративные элементы */}
-      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl" />
-      <div className="absolute bottom-0 left-0 w-24 h-24 bg-primary/10 rounded-full blur-2xl" />
-    </div>
-  )
+// Типы для данных
+interface Stats {
+  forms: { total: number; weeklyChange: number }
+  users: { total: number; weeklyChange: number }
+  responses: { total: number; weeklyChange: number }
+  dashboards: { total: number; weeklyChange: number }
 }
 
-// Компонент быстрых действий
-function QuickStartActions() {
-  const actions = [
+interface Activity {
+  type: string
+  action: string
+  item: string
+  timeAgo: string
+  href: string
+}
+
+// Функция для получения статистики
+async function getStats(): Promise<Stats> {
+  try {
+    const user = await getAuthenticatedUser()
+    const supabase = await createClient()
+
+    // Получаем статистику форм
+    const { count: formsCount } = await supabase
+      .from('forms')
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', user.id)
+
+    // Получаем статистику форм за последнюю неделю
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    
+    const { count: formsWeekCount } = await supabase
+      .from('forms')
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', user.id)
+      .gte('created_at', weekAgo.toISOString())
+
+    // Получаем статистику пользователей
+    const { count: usersCount } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+
+    // Получаем статистику пользователей за последнюю неделю
+    const { count: usersWeekCount } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', weekAgo.toISOString())
+
+    // Получаем статистику ответов на формы
+    const { count: responsesCount } = await supabase
+      .from('form_responses')
+      .select(`
+        *,
+        forms!inner(created_by)
+      `, { count: 'exact', head: true })
+      .eq('forms.created_by', user.id)
+
+    // Получаем статистику ответов за последнюю неделю
+    const { count: responsesWeekCount } = await supabase
+      .from('form_responses')
+      .select(`
+        *,
+        forms!inner(created_by)
+      `, { count: 'exact', head: true })
+      .eq('forms.created_by', user.id)
+      .gte('completed_at', weekAgo.toISOString())
+
+    // Получаем статистику дашбордов
+    const { count: dashboardsCount } = await supabase
+      .from('dashboards')
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', user.id)
+
+    // Получаем статистику дашбордов за последнюю неделю
+    const { count: dashboardsWeekCount } = await supabase
+      .from('dashboards')
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', user.id)
+      .gte('created_at', weekAgo.toISOString())
+
+    return {
+      forms: { total: formsCount || 0, weeklyChange: formsWeekCount || 0 },
+      users: { total: usersCount || 0, weeklyChange: usersWeekCount || 0 },
+      responses: { total: responsesCount || 0, weeklyChange: responsesWeekCount || 0 },
+      dashboards: { total: dashboardsCount || 0, weeklyChange: dashboardsWeekCount || 0 }
+    }
+  } catch (error) {
+    console.error('Error fetching stats:', error)
+    return {
+      forms: { total: 0, weeklyChange: 0 },
+      users: { total: 0, weeklyChange: 0 },
+      responses: { total: 0, weeklyChange: 0 },
+      dashboards: { total: 0, weeklyChange: 0 }
+    }
+  }
+}
+
+// Функция для получения активности
+async function getActivity(): Promise<Activity[]> {
+  try {
+    const user = await getAuthenticatedUser()
+    const supabase = await createClient()
+
+    // Получаем недавно созданные формы
+    const { data: recentForms } = await supabase
+      .from('forms')
+      .select('id, title, created_at')
+      .eq('created_by', user.id)
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    // Получаем недавние ответы на формы
+    const { data: recentResponses } = await supabase
+      .from('form_responses')
+      .select(`
+        id,
+        completed_at,
+        forms!inner(id, title, created_by)
+      `)
+      .eq('forms.created_by', user.id)
+      .order('completed_at', { ascending: false })
+      .limit(5)
+
+    // Получаем недавно добавленных пользователей
+    const { data: recentUsers } = await supabase
+      .from('users')
+      .select('id, email, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    // Получаем недавно созданные дашборды
+    const { data: recentDashboards } = await supabase
+      .from('dashboards')
+      .select('id, title, created_at')
+      .eq('created_by', user.id)
+      .order('created_at', { ascending: false })
+      .limit(3)
+
+    // Объединяем все активности и сортируем по времени
+    const activities: Array<{
+      type: string
+      action: string
+      item: string
+      time: string
+      href: string
+    }> = []
+
+    // Добавляем формы
+    recentForms?.forEach(form => {
+      activities.push({
+        type: 'form_created',
+        action: 'Создана форма',
+        item: form.title,
+        time: form.created_at,
+        href: `/admin/forms/${form.id}`
+      })
+    })
+
+    // Добавляем ответы
+    recentResponses?.forEach((response: any) => {
+      const form = response.forms
+      if (form) {
+        activities.push({
+          type: 'response_created',
+          action: 'Новый ответ',
+          item: form.title,
+          time: response.completed_at,
+          href: `/admin/forms/${form.id}/responses`
+        })
+      }
+    })
+
+    // Добавляем пользователей
+    recentUsers?.forEach(user => {
+      activities.push({
+        type: 'user_created',
+        action: 'Добавлен пользователь',
+        item: user.email,
+        time: user.created_at,
+        href: '/admin/users'
+      })
+    })
+
+    // Добавляем дашборды
+    recentDashboards?.forEach(dashboard => {
+      activities.push({
+        type: 'dashboard_created',
+        action: 'Создан дашборд',
+        item: dashboard.title,
+        time: dashboard.created_at,
+        href: `/admin/dashboards/${dashboard.id}`
+      })
+    })
+
+    // Сортируем по времени (новые сначала) и берем первые 10
+    const sortedActivities = activities
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .slice(0, 10)
+      .map(activity => ({
+        ...activity,
+        timeAgo: getTimeAgo(activity.time)
+      }))
+
+    return sortedActivities
+  } catch (error) {
+    console.error('Error fetching activity:', error)
+    return []
+  }
+}
+
+// Функция для форматирования времени "назад"
+function getTimeAgo(dateString: string): string {
+  const now = new Date()
+  const date = new Date(dateString)
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diffInSeconds < 60) {
+    return 'только что'
+  } else if (diffInSeconds < 3600) {
+    const minutes = Math.floor(diffInSeconds / 60)
+    return `${minutes} ${getMinutesWord(minutes)} назад`
+  } else if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600)
+    return `${hours} ${getHoursWord(hours)} назад`
+  } else if (diffInSeconds < 2592000) {
+    const days = Math.floor(diffInSeconds / 86400)
+    return `${days} ${getDaysWord(days)} назад`
+  } else {
+    return date.toLocaleDateString('ru-RU')
+  }
+}
+
+function getMinutesWord(count: number): string {
+  if (count === 1) return 'минуту'
+  if (count >= 2 && count <= 4) return 'минуты'
+  return 'минут'
+}
+
+function getHoursWord(count: number): string {
+  if (count === 1) return 'час'
+  if (count >= 2 && count <= 4) return 'часа'
+  return 'часов'
+}
+
+function getDaysWord(count: number): string {
+  if (count === 1) return 'день'
+  if (count >= 2 && count <= 4) return 'дня'
+  return 'дней'
+}
+
+// Статистические карточки
+async function StatsCards() {
+  const stats = await getStats()
+  
+  const statsData = [
     {
+      title: "Формы",
+      value: stats.forms.total.toString(),
+      change: `+${stats.forms.weeklyChange} за неделю`,
       icon: IconForms,
-      title: "Создать форму",
-      description: "Создайте новую форму для сбора данных",
-      href: "/admin/forms/add",
-      color: "bg-blue-500/10 text-blue-600 border-blue-200"
+      href: "/admin/forms"
     },
     {
+      title: "Пользователи", 
+      value: stats.users.total.toString(),
+      change: `+${stats.users.weeklyChange} за неделю`,
       icon: IconUsers,
-      title: "Управление пользователями",
-      description: "Добавьте пользователей и настройте роли",
-      href: "/admin/users",
-      color: "bg-green-500/10 text-green-600 border-green-200"
+      href: "/admin/users"
     },
     {
+      title: "Ответы",
+      value: stats.responses.total.toString(),
+      change: `+${stats.responses.weeklyChange} за неделю`, 
+      icon: IconActivity,
+      href: "/admin/forms"
+    },
+    {
+      title: "Дашборды",
+      value: stats.dashboards.total.toString(),
+      change: `+${stats.dashboards.weeklyChange} за неделю`,
       icon: IconChartBar,
-      title: "Создать дашборд",
-      description: "Визуализируйте данные из форм",
-      href: "/admin/dashboards/add",
-      color: "bg-purple-500/10 text-purple-600 border-purple-200"
-    },
-    {
-      icon: IconSettings,
-      title: "Настройки системы",
-      description: "Настройте права доступа и роли",
-      href: "/admin/roles",
-      color: "bg-orange-500/10 text-orange-600 border-orange-200"
+      href: "/admin/dashboards"
     }
   ]
 
   return (
-    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-      {actions.map((action, index) => (
-        <Card key={index} className="group hover:shadow-md transition-all duration-200 hover:-translate-y-1">
-          <CardContent className="p-6">
-            <Link href={action.href} className="block">
-              <div className={`w-12 h-12 rounded-lg ${action.color} flex items-center justify-center mb-4`}>
-                <action.icon className="h-6 w-6" />
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {statsData.map((stat, index) => (
+        <Card key={index} className="hover:shadow-md transition-shadow cursor-pointer">
+          <Link href={stat.href}>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                  <p className="text-3xl font-bold">{stat.value}</p>
+                  <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                    <IconTrendingUp className="h-3 w-3" />
+                    {stat.change}
+                  </p>
+                </div>
+                <div className="p-3 bg-primary/10 rounded-lg">
+                  <stat.icon className="h-6 w-6 text-primary" />
+                </div>
               </div>
-              <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">
-                {action.title}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {action.description}
-              </p>
-            </Link>
-          </CardContent>
+            </CardContent>
+          </Link>
         </Card>
       ))}
     </div>
   )
 }
 
-// Пошаговое руководство
-function StepByStepGuide() {
-  const steps = [
-    { 
-      number: 1,
-      title: "Создайте первую форму", 
-      description: "Начните с создания простой формы для сбора данных",
+// Быстрые действия
+function QuickActions() {
+  const actions = [
+    {
+      title: "Создать форму",
+      description: "Новая форма для сбора данных",
       href: "/admin/forms/add",
-      estimated: "5 мин"
+      icon: IconPlus,
+      variant: "default" as const
     },
-    { 
-      number: 2,
-      title: "Настройте пользователей", 
-      description: "Добавьте пользователей и настройте их роли",
+    {
+      title: "Добавить пользователя",
+      description: "Пригласить нового пользователя",
       href: "/admin/users",
-      estimated: "10 мин"
+      icon: IconUsers,
+      variant: "outline" as const
     },
-    { 
-      number: 3,
-      title: "Создайте дашборд", 
-      description: "Визуализируйте собранные данные",
-      href: "/admin/dashboards/add",
-      estimated: "15 мин"
+    {
+      title: "Создать дашборд",
+      description: "Визуализация данных",
+      href: "/admin/dashboards/add", 
+      icon: IconChartBar,
+      variant: "outline" as const
+    },
+    {
+      title: "Настройки",
+      description: "Управление системой",
+      href: "/admin/roles",
+      icon: IconSettings,
+      variant: "outline" as const
     }
   ]
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center gap-2">
-          <IconStar className="h-5 w-5 text-primary" />
-          <CardTitle>Пошаговое руководство</CardTitle>
-        </div>
-        <CardDescription>
-          Следуйте этим шагам, чтобы быстро освоить платформу
-        </CardDescription>
+        <CardTitle>Быстрые действия</CardTitle>
+        <CardDescription>Основные операции системы</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {steps.map((step, index) => (
-            <div key={index} className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-              <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                {step.number}
-              </div>
-              <div className="flex-1">
-                <h4 className="font-semibold">{step.title}</h4>
-                <p className="text-sm text-muted-foreground">{step.description}</p>
-                <span className="text-xs text-primary">Примерное время: {step.estimated}</span>
-              </div>
-              <Button asChild variant="outline" size="sm">
-                <Link href={step.href}>
-                  Начать
-                  <IconArrowRight className="h-3 w-3 ml-1" />
-                </Link>
-              </Button>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {actions.map((action, index) => (
+            <Button
+              key={index}
+              variant={action.variant}
+              className="h-auto p-4 justify-start"
+              asChild
+            >
+              <Link href={action.href}>
+                <div className="flex items-center gap-3">
+                  <action.icon className="h-5 w-5" />
+                  <div className="text-left">
+                    <div className="font-medium">{action.title}</div>
+                    <div className="text-xs text-muted-foreground">{action.description}</div>
+                  </div>
+                </div>
+              </Link>
+            </Button>
           ))}
         </div>
       </CardContent>
@@ -187,116 +392,69 @@ function StepByStepGuide() {
   )
 }
 
-// Полезные ресурсы
-function HelpfulResources() {
-  const resources = [
-    {
-      icon: IconBook,
-      title: "Документация",
-      description: "Подробное руководство по всем функциям",
-      href: "#"
-    },
-    {
-      icon: IconSparkles,
-      title: "Примеры форм",
-      description: "Готовые шаблоны для быстрого старта",
-      href: "#"
-    },
-    {
-      icon: IconRocket,
-      title: "Видео-туры",
-      description: "Смотрите как работать с платформой",
-      href: "#"
-    }
-  ]
+// Недавняя активность
+async function RecentActivity() {
+  const activities = await getActivity()
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <IconBook className="h-5 w-5 text-primary" />
-          <CardTitle>Полезные ресурсы</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Недавняя активность</CardTitle>
+          <CardDescription>Последние изменения в системе</CardDescription>
         </div>
-        <CardDescription>Материалы для изучения платформы</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {resources.map((resource, index) => (
-          <Button key={index} variant="ghost" className="w-full justify-start h-auto p-3" asChild>
-            <Link href={resource.href}>
-              <div className="flex items-center gap-3">
-                <resource.icon className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">{resource.title}</div>
-                  <div className="text-xs text-muted-foreground">{resource.description}</div>
+      <CardContent>
+        <div className="space-y-3">
+          {activities.length > 0 ? (
+            activities.slice(0, 5).map((activity, index) => (
+              <Link key={index} href={activity.href}>
+                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
+                  <div>
+                    <p className="text-sm font-medium">{activity.action}</p>
+                    <p className="text-sm text-muted-foreground">{activity.item}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">{activity.timeAgo}</p>
+                  </div>
                 </div>
-              </div>
-            </Link>
-          </Button>
-        ))}
+              </Link>
+            ))
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-sm text-muted-foreground">Пока нет активности</p>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   )
 }
 
-export default function AdminPage() {
+export default async function AdminPage() {
   return (
     <div className="space-y-8">
-      {/* Hero секция с объяснением платформы */}
-      <WelcomeHero />
+      {/* Заголовок */}
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">FormBuilder</h1>
+        <p className="text-muted-foreground">
+          Платформа для создания форм и управления данными
+        </p>
+      </div>
 
-      {/* Быстрые действия */}
-      <QuickStartActions />
+      {/* Статистика */}
+      <StatsCards />
 
       {/* Основной контент */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Левая колонка - Пошаговое руководство */}
+        {/* Быстрые действия */}
         <div className="lg:col-span-2">
-          <StepByStepGuide />
+          <QuickActions />
         </div>
 
-        {/* Правая колонка - Статистика и ресурсы */}
-        <div className="space-y-6">
-          {/* Быстрая статистика */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Статистика</CardTitle>
-              <CardDescription>Текущее состояние системы</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Всего форм</span>
-                <Badge variant="secondary">12</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Пользователи</span>
-                <Badge variant="secondary">48</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Ответы</span>
-                <Badge variant="secondary">324</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Дашборды</span>
-                <Badge variant="secondary">5</Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Полезные ресурсы */}
-          <HelpfulResources />
-
-          {/* Статус системы */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm font-medium">Система работает стабильно</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Последняя проверка: только что
-              </p>
-            </CardContent>
-          </Card>
+        {/* Недавняя активность */}
+        <div>
+          <RecentActivity />
         </div>
       </div>
     </div>
